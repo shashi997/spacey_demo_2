@@ -6,7 +6,7 @@ import axios from 'axios';
 // This is good practice so you don't have to type the full URL everywhere.
 const apiClient = axios.create({
   // IMPORTANT: This is a placeholder URL. Replace it with your actual backend endpoint later.
-  baseURL: 'https://your-backend-api-url.com/api', 
+  baseURL: 'http://localhost:5000/api/chat', 
   headers: {
     'Content-Type': 'application/json',
   }
@@ -36,6 +36,7 @@ export const sendChatMessageToAI = async (message, userInfo) => {
       user: {
         id: userInfo?.uid || 'anonymous-user', // User's Firebase UID
         email: userInfo?.email || 'anonymous@example.com',
+        name: userInfo?.name || 'Explorer', // Default name if not provided
         // You can add any other user attributes you fetch from Firestore here
         // e.g., name: userInfo?.displayName
       },
@@ -44,7 +45,7 @@ export const sendChatMessageToAI = async (message, userInfo) => {
     };
 
     // Make the POST request to the '/chat' endpoint
-    const response = await apiClient.post('/chat', payload);
+    const response = await apiClient.post('/spacey', payload);
     
     // Return the full response data
     return response.data;

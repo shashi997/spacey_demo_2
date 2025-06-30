@@ -36,7 +36,6 @@ export const sendChatMessageToAI = async (message, userInfo) => {
       user: {
         id: userInfo?.uid || 'anonymous-user', // User's Firebase UID
         email: userInfo?.email || 'anonymous@example.com',
-        name: userInfo?.name || 'Explorer', // Default name if not provided
         // You can add any other user attributes you fetch from Firestore here
         // e.g., name: userInfo?.displayName
       },

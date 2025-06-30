@@ -6,11 +6,11 @@ import { X } from 'lucide-react';
 import LessonCard from './Lesson_Cards';
 
 // Import your lesson images
-import satelliteImg from '../../assets/chirag-malik-FHGkbIJYVbg-unsplash.jpg';
+import satelliteImg from '../../assets/satellite.jpg';
 import spaghettificationImg from '../../assets/boliviainteligente-MO6wb4hdhZo-unsplash.jpg';
-import space_explorationImg from '../../assets/brian-mcgowan-I0fDR8xtApA-unsplash.jpg';
+import space_explorationImg from '../../assets/space.jpg';
 import MarsRoverImg from '../../assets/mars-67522_640.jpg';
-import ZeroGravityImg from '../../assets/ai-generated-8143656_640.jpg';
+import ZeroGravityImg from '../../assets/zerogravity.jpg';
 
 // Your new lesson data structure
 const lessons = [

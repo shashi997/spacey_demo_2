@@ -2,11 +2,14 @@ import axios from 'axios';
 // You might need to import your firebase auth instance if you implement token-based auth
 // import { auth } from '../firebaseConfig'; 
 
+// Get the API base URL from environment variables
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 // Create an Axios instance with a base URL.
 // This is good practice so you don't have to type the full URL everywhere.
 const apiClient = axios.create({
   // IMPORTANT: This is a placeholder URL. Replace it with your actual backend endpoint later.
-  baseURL: 'http://localhost:5000/api/chat', 
+  baseURL: `${API_BASE_URL}/api/chat`, // e.g., 'http://localhost:5000/api' or 'https://your-production-url.com/api'
   headers: {
     'Content-Type': 'application/json',
   }

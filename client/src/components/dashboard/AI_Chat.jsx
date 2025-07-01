@@ -7,6 +7,18 @@ import { sendChatMessageToAI } from '../../api/spacey_api';
 
 const ChatMessage = ({ sender, text }) => {
   const isUser = sender === 'user';
+  const isSystem = sender === 'system';
+  
+  if (isSystem) {
+    return (
+      <div className="flex w-full justify-center">
+        <div className="px-3 py-1 bg-gray-600/50 text-gray-300 text-xs rounded-full">
+          {text}
+        </div>
+      </div>
+    );
+  }
+  
   return (
     <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div
@@ -28,6 +40,8 @@ const AIChat = () => {
   ]);
   const [inputText, setInputText] = useState('');
   const [isAiResponding, setIsAiResponding] = useState(false);
+  const [currentMission, setCurrentMission] = useState('dashboard');
+  const [useEnhancedEngine, setUseEnhancedEngine] = useState(true);
   const chatContainerRef = useRef(null);
   const { currentUser } = useAuth();
 
@@ -61,9 +75,24 @@ const AIChat = () => {
     setIsAiResponding(true);
 
     try {
-      const aiResponseData = await sendChatMessageToAI(trimmedText, currentUser);
+      // Prepare enhanced context for the AI
+      const enhancedContext = useEnhancedEngine ? {
+        useEnhancedEngine: true,
+        currentMission: currentMission,
+        tone: 'supportive', // Can be made dynamic based on user preference
+        emotionalState: 'neutral', // Could be detected from message sentiment
+        playerId: currentUser?.uid || 'anonymous'
+      } : null;
+
+      const aiResponseData = await sendChatMessageToAI(trimmedText, currentUser, enhancedContext);
       const aiResponseMessage = { sender: 'ai', text: aiResponseData.message };
       setMessages(prev => [...prev, aiResponseMessage]);
+
+      // Log enhanced response data for debugging (in development)
+      if (import.meta.env.DEV && aiResponseData.playerTraits) {
+        console.log('Player traits:', aiResponseData.playerTraits);
+        console.log('Context used:', aiResponseData.context);
+      }
 
       if (isTtsSupported && aiResponseData.message) {
         speak(aiResponseData.message);
@@ -111,10 +140,52 @@ const AIChat = () => {
     }
   };
 
+  // Function to change mission context
+  const changeMission = (missionId) => {
+    setCurrentMission(missionId);
+    // Add a system message to indicate mission change
+    const systemMessage = { 
+      sender: 'system', 
+      text: `Mission context updated to: ${missionId.replace('_', ' ').toUpperCase()}` 
+    };
+    setMessages(prev => [...prev, systemMessage]);
+  };
+
   const isInputDisabled = isListening || isAiResponding || isAiSpeaking;
 
   return (
     <div className="flex flex-col h-full bg-black/30 backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden">
+      {/* Enhanced Chat Header with Mission Context (Dev Mode Only) */}
+      {import.meta.env.DEV && (
+        <div className="p-2 border-b border-white/10 bg-black/20">
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-gray-400">Mission:</span>
+            <select
+              value={currentMission}
+              onChange={(e) => changeMission(e.target.value)}
+              className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs"
+            >
+              <option value="dashboard">Dashboard</option>
+              <option value="mars_mission_1">Mars Mission</option>
+              <option value="lesson_astronomy">Astronomy Lesson</option>
+              <option value="crisis_mode">Crisis Mode</option>
+            </select>
+            
+            <span className="text-gray-400 ml-2">Engine:</span>
+            <button
+              onClick={() => setUseEnhancedEngine(!useEnhancedEngine)}
+              className={`px-2 py-1 rounded text-xs transition-colors ${
+                useEnhancedEngine 
+                  ? 'bg-green-600 text-white' 
+                  : 'bg-gray-600 text-gray-300'
+              }`}
+            >
+              {useEnhancedEngine ? 'Enhanced' : 'Basic'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Chat Messages Area */}
       <div
         ref={chatContainerRef}

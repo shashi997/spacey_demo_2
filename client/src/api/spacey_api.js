@@ -20,9 +20,10 @@ const apiClient = axios.create({
  * 
  * @param {string} message - The user's message text.
  * @param {object} userInfo - An object containing user data (e.g., from Firebase Auth).
+ * @param {object} context - Enhanced context for the prompt engine (optional).
  * @returns {Promise<object>} The AI's response from the backend.
  */
-export const sendChatMessageToAI = async (message, userInfo) => {
+export const sendChatMessageToAI = async (message, userInfo, context = null) => {
   try {
     // In a real application, you would get the user's auth token from Firebase
     // and include it in the headers for secure, authenticated requests.
@@ -30,7 +31,7 @@ export const sendChatMessageToAI = async (message, userInfo) => {
     // const token = await auth.currentUser.getIdToken();
     // apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
-    console.log("Sending to backend:", { message, userInfo });
+    console.log("Sending to backend:", { message, userInfo, context });
 
     // The payload sent to your backend API.
     // It includes the user's message and any relevant user context.
@@ -42,11 +43,13 @@ export const sendChatMessageToAI = async (message, userInfo) => {
         // You can add any other user attributes you fetch from Firestore here
         // e.g., name: userInfo?.displayName
       },
+      // Enhanced context for the prompt engine
+      context: context,
       // For a conversational AI, you might also include chat history
       // history: chatHistory, 
     };
 
-    // Make the POST request to the '/chat' endpoint
+    // Make the POST request to the '/spacey' endpoint
     const response = await apiClient.post('/spacey', payload);
     
     // Return the full response data
@@ -56,5 +59,62 @@ export const sendChatMessageToAI = async (message, userInfo) => {
     console.error("Error calling AI backend:", error);
     // Re-throw a more specific error or return a default error message.
     throw new Error("Failed to get a response from the AI. Please try again.");
+  }
+};
+
+/**
+ * Get player memory for a specific user
+ * @param {string} playerId - The player's unique ID
+ * @returns {Promise<object>} Player memory data
+ */
+export const getPlayerMemory = async (playerId) => {
+  try {
+    const response = await apiClient.get(`/player/${playerId}/memory`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching player memory:", error);
+    throw new Error("Failed to load player memory.");
+  }
+};
+
+/**
+ * Update player traits
+ * @param {string} playerId - The player's unique ID
+ * @param {string} trait - The trait to add/remove
+ * @param {string} action - 'add' or 'remove'
+ * @param {string} reason - Reason for the change
+ * @returns {Promise<object>} Updated player memory
+ */
+export const updatePlayerTrait = async (playerId, trait, action, reason = 'manual_update') => {
+  try {
+    const response = await apiClient.post(`/player/${playerId}/trait`, {
+      trait,
+      action,
+      reason
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error updating player trait:", error);
+    throw new Error("Failed to update player trait.");
+  }
+};
+
+/**
+ * Update player's current mission
+ * @param {string} playerId - The player's unique ID
+ * @param {string} missionId - The mission ID
+ * @param {object} progress - Mission progress data
+ * @returns {Promise<object>} Updated player memory
+ */
+export const updatePlayerMission = async (playerId, missionId, progress = {}) => {
+  try {
+    const response = await apiClient.post(`/player/${playerId}/mission`, {
+      missionId,
+      progress
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error updating player mission:", error);
+    throw new Error("Failed to update player mission.");
   }
 };

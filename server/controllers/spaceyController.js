@@ -1,8 +1,10 @@
 const { GoogleGenAI  } = require("@google/genai");
+const { playerMemory } = require('./playerMemoryController');
+const { aiProviderManager } = require('./aiProviders');
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-// Prompt Engine for Spacey's Brain (enh)
+// Enhanced Prompt Engine for Spacey's Brain
 class SpaceyPromptEngine {
   constructor() {
     this.missionBlocks = {
@@ -42,7 +44,6 @@ class SpaceyPromptEngine {
   }
 
   // Generate a structured prompt based on current context
-  // used emoji for better parsing by the LLM
   generatePrompt(userMessage, playerContext = {}) {
     const {
       name = 'Explorer',
@@ -56,7 +57,7 @@ class SpaceyPromptEngine {
     const mission = this.missionBlocks[currentMission] || this.missionBlocks.dashboard;
     const toneDesc = this.toneProfiles[tone] || this.toneProfiles.supportive;
 
-    // Build dynamic context 
+    // Build dynamic context
     let contextualInfo = `
 🌌 **MISSION**: ${mission.title}
 📍 **LOCATION**: ${mission.context}
@@ -67,7 +68,7 @@ class SpaceyPromptEngine {
       contextualInfo += `\n⚡ **RECENT CHOICE**: ${playerChoice}`;
     }
 
-    // Build personality 
+    // Build personality section
     const personalityContext = `
 👤 **PLAYER**: ${name}
 🧬 **TRAITS**: ${traits.join(', ')}
@@ -108,10 +109,10 @@ ${personalityContext}
   }
 }
 
-// global instance
+// Create global instance
 const promptEngine = new SpaceyPromptEngine();
 
-// simpler system for backwards compatibility (org)
+// Original simpler system for backwards compatibility
 const buildSystemPrompt = (userPrompt, userInfo = {}) => {
   const {
     name = 'Explorer',
@@ -151,38 +152,148 @@ const chatWithAI = async (req, res) => {
             return res.status(400).json({ error: "A prompt is required." });
         }
 
-        // Use enhanced prompt engine if context is provided
+        // Get player ID (from user object or context)
+        const playerId = user?.id || user?.uid || context?.playerId || 'anonymous';
+
+        // Load player memory and traits
+        const playerTraits = await playerMemory.getPlayerTraitsForPrompt(playerId);
+
+        // Use enhanced prompt engine if context is provided or if using memory system
         let fullPrompt;
+        let finalContext = context || {};
+
         if (context && context.useEnhancedEngine) {
-            fullPrompt = promptEngine.generatePrompt(prompt, context);
+            // Merge player traits with provided context
+            finalContext = {
+                ...context,
+                ...playerTraits,
+                // Override with any explicitly provided context values
+                ...context
+            };
+            fullPrompt = promptEngine.generatePrompt(prompt, finalContext);
+        } else if (playerTraits.traits.length > 2) { // Use enhanced if player has evolved beyond defaults
+            // Auto-use enhanced engine for evolved players
+            finalContext = {
+                useEnhancedEngine: true,
+                ...playerTraits,
+                currentMission: playerTraits.currentMission || 'dashboard',
+                tone: playerTraits.preferredTone || 'supportive'
+            };
+            fullPrompt = promptEngine.generatePrompt(prompt, finalContext);
         } else {
-            // Fallback to original system
-            fullPrompt = buildSystemPrompt(prompt, user);
+            // Fallback to original system but with player data
+            const userWithTraits = {
+                ...user,
+                name: playerTraits.name,
+                traits: playerTraits.traits,
+                tone: playerTraits.preferredTone || 'supportive, witty',
+                location: playerTraits.currentMission || 'dashboard'
+            };
+            fullPrompt = buildSystemPrompt(prompt, userWithTraits);
         }
 
-        const result = await genAI.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: fullPrompt
-        });
+        // Use AI Provider Manager to generate response
+        const aiProvider = finalContext.aiProvider || process.env.DEFAULT_AI_PROVIDER || 'gemini';
+        let text;
+        
+        try {
+            text = await aiProviderManager.generateResponse(fullPrompt, aiProvider);
+        } catch (providerError) {
+            console.error(`AI Provider Error:`, providerError);
+            // Fallback to original Gemini implementation
+            const result = await genAI.models.generateContent({
+                model: "gemini-2.5-flash",
+                contents: fullPrompt
+            });
+            const response = await result.text;
+            text = response;
+        }
 
-        const response = await result.text;
-        const text = response;
+        // Update player memory based on interaction
+        await playerMemory.updateTraitsFromInteraction(playerId, {
+            choice: prompt,
+            context: finalContext.currentMission || 'general_chat',
+            sentiment: 'neutral' // Could be enhanced with sentiment analysis
+        });
 
         // Send enhanced response with metadata
         res.json({ 
             message: text,
-            context: context || {},
-            promptUsed: context?.debug ? fullPrompt : undefined
+            context: finalContext,
+            playerTraits: playerTraits,
+            aiProvider: aiProvider,
+            promptUsed: finalContext?.debug ? fullPrompt : undefined
         });
 
     } catch (error) {
-        console.error("Error communicating with Google AI:", error);
+        console.error("Error communicating with AI:", error);
         res.status(500).json({ error: "Failed to get a response from the AI. The mission was aborted." });
     }
 }
 
-// Prompt engine export
+// New endpoint for player memory management
+const getPlayerMemory = async (req, res) => {
+    try {
+        const { playerId } = req.params;
+        const memory = await playerMemory.loadPlayerMemory(playerId);
+        res.json(memory);
+    } catch (error) {
+        console.error("Error loading player memory:", error);
+        res.status(500).json({ error: "Failed to load player memory." });
+    }
+}
+
+const updatePlayerTrait = async (req, res) => {
+    try {
+        const { playerId } = req.params;
+        const { trait, action, reason } = req.body; // action: 'add' or 'remove'
+
+        let memory;
+        if (action === 'add') {
+            memory = await playerMemory.addTrait(playerId, trait, reason);
+        } else if (action === 'remove') {
+            memory = await playerMemory.removeTrait(playerId, trait, reason);
+        } else {
+            return res.status(400).json({ error: "Action must be 'add' or 'remove'" });
+        }
+
+        res.json({ success: true, memory });
+    } catch (error) {
+        console.error("Error updating player trait:", error);
+        res.status(500).json({ error: "Failed to update player trait." });
+    }
+}
+
+const updatePlayerMission = async (req, res) => {
+    try {
+        const { playerId } = req.params;
+        const { missionId, progress } = req.body;
+
+        const memory = await playerMemory.updateCurrentMission(playerId, missionId, progress);
+        res.json({ success: true, memory });
+    } catch (error) {
+        console.error("Error updating player mission:", error);
+        res.status(500).json({ error: "Failed to update player mission." });
+    }
+}
+
+// New endpoint to get available AI providers
+const getAIProviders = async (req, res) => {
+    try {
+        const providers = aiProviderManager.getAvailableProviders();
+        res.json({ providers });
+    } catch (error) {
+        console.error("Error getting AI providers:", error);
+        res.status(500).json({ error: "Failed to get AI providers." });
+    }
+}
+
+// Export the prompt engine for potential use in other modules
 module.exports = {
     chatWithAI,
-    promptEngine
+    promptEngine,
+    getPlayerMemory,
+    updatePlayerTrait,
+    updatePlayerMission,
+    getAIProviders
 }

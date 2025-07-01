@@ -1,7 +1,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 
-// Player Memory System for Spacey
+// Player Memory System 
 class PlayerMemorySystem {
   constructor(dataDir = './data') {
     this.dataDir = dataDir;

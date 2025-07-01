@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Stars } from '@react-three/drei';
-import { BookOpen } from 'lucide-react';
+import { BookOpen, Settings } from 'lucide-react';
 
 // Import the Navbar
 import Navbar from '../components/ui/Navbar';
@@ -12,6 +12,7 @@ import AI_Avatar from '../components/dashboard/AI_Avatar';
 import WebcamFeed from '../components/dashboard/Webcam_Feed';
 import AIChat from '../components/dashboard/AI_Chat';
 import LessonCatalogueModal from '../components/dashboard/LessonCatalogueModal';
+import DebugPanel from '../components/dashboard/DebugPanel';
 
 // A self-contained component for the 3D star background
 const StarCanvas = () => (
@@ -24,6 +25,7 @@ const StarCanvas = () => (
 
 const DashboardPage = () => {
   const [isCatalogueOpen, setCatalogueOpen] = useState(false);
+  const [isDebugOpen, setDebugOpen] = useState(false);
 
   return (
     <div className="relative w-full h-screen overflow-hidden bg-[radial-gradient(ellipse_at_bottom,_#1b2735_0%,_#090a0f_100%)]">
@@ -50,14 +52,38 @@ const DashboardPage = () => {
         </button>
       </aside>
       
-      {/* --- Floating Action Button for Mobile/Tablet (Position Updated) --- */}
-      <button
-        onClick={() => setCatalogueOpen(true)}
-        className="lg:hidden fixed bottom-6 left-6 z-40 p-4 bg-cyan-600/80 backdrop-blur-sm text-white rounded-full shadow-lg hover:bg-cyan-500 transition-colors border border-cyan-400/50"
-        aria-label="Open Lesson Catalogue"
-      >
-        <BookOpen size={24} />
-      </button>
+      {/* --- Floating Action Buttons for Mobile/Tablet --- */}
+      <div className="lg:hidden fixed bottom-6 left-6 z-40 flex flex-col gap-3">
+        <button
+          onClick={() => setCatalogueOpen(true)}
+          className="p-4 bg-cyan-600/80 backdrop-blur-sm text-white rounded-full shadow-lg hover:bg-cyan-500 transition-colors border border-cyan-400/50"
+          aria-label="Open Lesson Catalogue"
+        >
+          <BookOpen size={24} />
+        </button>
+        
+        {/* Debug Panel Button - Only show in development */}
+        {import.meta.env.DEV && (
+          <button
+            onClick={() => setDebugOpen(true)}
+            className="p-4 bg-purple-600/80 backdrop-blur-sm text-white rounded-full shadow-lg hover:bg-purple-500 transition-colors border border-purple-400/50"
+            aria-label="Open Debug Panel"
+          >
+            <Settings size={24} />
+          </button>
+        )}
+      </div>
+
+      {/* --- Desktop Debug Button --- */}
+      {import.meta.env.DEV && (
+        <button
+          onClick={() => setDebugOpen(true)}
+          className="hidden lg:block fixed bottom-6 right-6 z-40 p-4 bg-purple-600/80 backdrop-blur-sm text-white rounded-full shadow-lg hover:bg-purple-500 transition-colors border border-purple-400/50"
+          aria-label="Open Debug Panel"
+        >
+          <Settings size={24} />
+        </button>
+      )}
 
       {/* --- Main Content Grid (Padding Updated) --- */}
       {/* The pt-20 class ensures the grid content starts below the fixed Navbar */}
@@ -87,6 +113,12 @@ const DashboardPage = () => {
       <LessonCatalogueModal 
         isOpen={isCatalogueOpen} 
         onClose={() => setCatalogueOpen(false)} 
+      />
+
+      {/* Debug Panel */}
+      <DebugPanel
+        isOpen={isDebugOpen}
+        onClose={() => setDebugOpen(false)}
       />
     </div>
   );

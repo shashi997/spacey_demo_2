@@ -13,8 +13,12 @@
   "description": "",
   "dependencies": {
     "@google/genai": "^1.7.0",
+    "axios": "^1.7.0",
     "cors": "^2.8.5",
     "dotenv": "^16.6.0",
     "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
   }
 }

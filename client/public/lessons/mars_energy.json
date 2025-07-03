@@ -1,0 +1,270 @@
+{
+    "mission_id": "mars_energy",
+    "title": "Mars Energy Dilemma",
+    "total_blocks": 12, 
+    "blocks": [   
+        {
+            "block_id": "Opening Scene",
+            "type": "narration",
+            "content": "You are the Systems Commander of the Mars Base Ares-X. At 05:43 MCT, the main energy core shuts down."
+        },
+        {
+            "block_id": "Initial Scan",
+            "type": "choice",
+            "content": "System alerts appear. Oxygen levels steady. Temperature dropping. Power estimated to last: 45 minutes.",
+            "choices": [
+                {
+                    "text": "Scan for solar interference",
+                    "next_block": "Solar Flare Detected",
+                    "tag": "cautious",
+                    "ai_reaction": "Player chose to investigate external factors first."
+                },
+                {
+                    "text": "Check internal systems",
+                    "next_block": "Circuit Burn",
+                    "tag": "active",
+                    "ai_reaction": "Player chose to investigate internal systems first."
+                }
+            ]
+        },
+        {
+            "block_id": "Solar Flare Detected",
+            "type": "choice",
+            "content": "You detect a spike. A flare may have disrupted the power grid. Communication with Earth is delayed.",
+            "choices": [
+                {
+                    "text": "Shut down non-essential systems",
+                    "next_block": "AI Decision Conflict",
+                    "tag": "cautious",
+                    "ai_reaction": "Player prioritised conserving resources immediately."
+                },
+                {
+                    "text": "Wait to see if flare ends",
+                    "next_block": "AI Decision Conflict",
+                    "tag": "passive",
+                    "ai_reaction": "Player chose to observe before acting."
+                }
+            ]
+        },
+        {
+            "block_id": "Circuit Burn",
+            "type": "choice",
+            "content": "You find a circuit overload in the cooling array. It’s overheating.",
+            "choices": [
+                {
+                    "text": "Divert coolant from hydroponics",
+                    "next_block": "AI Decision Conflict",
+                    "tag": "risk",
+                    "ai_reaction": "Player chose to risk one system to save another."
+                },
+                {
+                    "text": "Send maintenance bot manually",
+                    "next_block": "AI Decision Conflict",
+                    "tag": "safe",
+                    "ai_reaction": "Player chose a direct, less risky approach."
+                }
+            ]
+        },
+        {
+            "block_id": "AI Decision Conflict",
+            "type": "choice",
+            "content": "The Mars AI system suggests overriding your choice. Introduce decision under uncertainty.",
+            "choices": [
+              {
+                "text": "Override the AI",
+                "next_block": "Complication",
+                "tag": "assertive",
+                "ai_reaction": "Player asserted their authority over the AI."
+              },
+              {
+                "text": "Let AI lead response",
+                "next_block": "Complication",
+                "tag": "collaborative",
+                "ai_reaction": "Player chose to trust the AI's judgment."
+              }
+            ]
+        },
+        {
+            "block_id": "Complication",
+            "type": "choice",
+            "content": "Your decision causes an unexpected secondary failure: Life support systems begin to degrade. This raises the stakes.",
+            "choices": [
+              {
+                "text": "Reroute energy manually",
+                "next_block": "AI Reaction",
+                "tag": "active",
+                "ai_reaction": "Player took direct manual control."
+              },
+              {
+                "text": "Wake human backup crew early",
+                "next_block": "AI Reaction",
+                "tag": "collaborative",
+                "ai_reaction": "Player sought human assistance."
+              }
+            ]
+        },
+        {
+          "block_id": "AI Reaction",
+          "type": "reflection",
+          "content": "Spacey responds to your pattern so far:",
+          "dynamic_content": [
+            {
+              "condition_tags": ["bold", "assertive", "active", "risk"],
+              "text": "You tend to take bold risks under pressure."
+            },
+            {
+              "condition_tags": ["cautious", "passive", "safe", "collaborative"],
+              "text": "You rely on systems not intuition."
+            }
+          ],
+          "next_block": "Last Major Decision"
+        },
+        {
+          "block_id": "Last Major Decision",
+          "type": "choice",
+          "content": "Power restored partially. You must decide which part of base gets priority:",
+          "choices": [
+            {
+              "text": "Life support",
+              "next_block": "Unexpected Outcome",
+              "tag": "safe",
+              "ai_reaction": "Player prioritised basic survival."
+            },
+            {
+              "text": "Research labs",
+              "next_block": "Unexpected Outcome",
+              "tag": "mission_continuity",
+              "ai_reaction": "Player prioritised long-term mission goals."
+            },
+            {
+              "text": "Communications",
+              "next_block": "Unexpected Outcome",
+              "tag": "external_help",
+              "ai_reaction": "Player prioritised seeking outside assistance."
+            }
+          ]
+        },
+        {
+            "block_id": "Unexpected Outcome",
+            "type": "narration",
+            "content": "Depending on past choices, you experience one of three consequences: Base stabilises, Earth contact re-established, or Team member suffers from early oxygen loss. Realism in outcome, no perfect win.",
+            "dynamic_outcome": [
+              {
+                "condition_tags": ["safe"],
+                "text": "The base stabilizes, but external communication remains patchy."
+              },
+              {
+                "condition_tags": ["external_help"],
+                "text": "Earth contact is re-established, but critical research data is lost."
+              },
+              {
+                "condition_tags": ["mission_continuity"],
+                "text": "Research labs are powered, but a team member suffers from early oxygen loss due to power fluctuations."
+              },
+              {
+                "condition_tags": [],
+                "text": "Despite your efforts, the outcome is a mix of successes and setbacks, reflecting the high stakes of your decisions."
+              }
+            ],
+            "next_block": "Spacey Final Reflection"
+        },
+        {
+          "block_id": "Spacey Final Reflection",
+          "type": "reflection",
+          "content": "Spacey says:",
+          "dynamic_content": [
+            {
+              "condition_tags": ["bold", "active", "risk", "assertive"],
+              "text": "You're the kind of leader who values speed over safety."
+            },
+            {
+              "condition_tags": ["cautious", "safe", "collaborative", "passive"],
+              "text": "You think in systems and that saved your crew."
+            }
+          ],
+          "next_block": "Learning Quiz"
+        },
+        {
+          "block_id": "Learning Quiz",
+          "type": "quiz",
+          "content": "Test your knowledge about the crisis:",
+          "questions": [
+            {
+              "question_text": "What's a solar flare and how does it impact electronics?",
+              "options": [
+                {"text": "A burst of radiation from the sun that can disrupt power grids.", "is_correct": true},
+                {"text": "A sudden change in planetary temperature that affects circuits.", "is_correct": false},
+                {"text": "An atmospheric phenomenon unique to Mars that causes static.", "is_correct": false}
+              ],
+              "correct_feedback": "Correct! Solar flares are dangerous to electronics.",
+              "incorrect_feedback": "Not quite. Solar flares are bursts of radiation from the sun."
+            },
+            {
+              "question_text": "Why is energy routing critical in space environments?",
+              "options": [
+                {"text": "To ensure efficient power distribution and prevent overloads in isolated systems.", "is_correct": true},
+                {"text": "To keep the crew entertained during long missions.", "is_correct": false},
+                {"text": "To create artificial gravity for comfort.", "is_correct": false}
+              ],
+              "correct_feedback": "That's right! Proper energy routing is vital for survival.",
+              "incorrect_feedback": "Think about the limited resources and critical systems in space."
+            },
+            {
+              "question_text": "Which systems must never be de-prioritised in a crisis?",
+              "options": [
+                {"text": "Life support systems, such as oxygen and temperature control.", "is_correct": true},
+                {"text": "Entertainment systems and personal communication devices.", "is_correct": false},
+                {"text": "Research drones and geological survey equipment.", "is_correct": false}
+              ],
+              "correct_feedback": "Absolutely! Life support is always paramount.",
+              "incorrect_feedback": "Consider what is essential for human survival in a harsh environment."
+            }
+          ],
+          "next_block": "Debrief"
+        },
+        {
+          "block_id": "Debrief",
+          "type": "narration",
+          "content": "Short summary of decisions taken. Mission outcome: Stabilised with partial systems loss.",
+          "dynamic_traits": [
+            {
+              "condition_tags": ["cautious"],
+              "text": "Traits shown: Cautious"
+            },
+            {
+              "condition_tags": ["active"],
+              "text": "Traits shown: Reactive"
+            },
+            {
+              "condition_tags": ["collaborative"],
+              "text": "Traits shown: Collaborative"
+            },
+            {
+              "condition_tags": ["assertive"],
+              "text": "Traits shown: Assertive"
+            },
+            {
+              "condition_tags": ["risk"],
+              "text": "Traits shown: Risk-taker"
+            },
+            {
+              "condition_tags": ["safe"],
+              "text": "Traits shown: Safety-conscious"
+            }
+          ],
+          "next_block": "Unlock / Next Mission"
+        },
+        {
+          "block_id": "Unlock / Next Mission",
+          "type": "narration",
+          "content": "You've unlocked: Solar Shield Crisis. Also update profile dashboard with behaviour traits.",
+          "mission_duration": "Total Duration: ~15-18 min (3 min setup + narration, 7 min gameplay, 3 min reflection + feedback, 2 min quiz)",
+          "educational_takeaways": [
+            "Energy flow and resource triage in emergencies",
+            "Consequences of early decisions",
+            "Real-world systems thinking under pressure",
+            "Opportunity for ethical discussions in class"
+          ]
+        }
+    ]
+}

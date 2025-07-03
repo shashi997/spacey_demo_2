@@ -17,7 +17,7 @@ const lessons = [
     { id: 'build-satellite', title: 'Build Your Own Satellite', image: satelliteImg },
     { id: 'spaghettification', title: 'Spaghettification', image: spaghettificationImg },
     { id: 'space-exploration-news', title: `What's new in Space Exploration`, image: space_explorationImg },
-    { id: 'mars-rover-mission', title: 'Mars Rover Mission', image: MarsRoverImg },
+    { id: 'mars_energy', title: 'Mars Energy Dilemma', image: MarsRoverImg },
     { id: 'zero-gravity', title: 'Zero Gravity', image: ZeroGravityImg },
 ];
 

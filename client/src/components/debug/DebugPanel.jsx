@@ -1,7 +1,7 @@
 // e:\Spacey-Intern\spacey_first_demo\spacey_demo_2\client\src\components\debug\DebugPanel.jsx
 
 import React, { useState } from 'react';
-import { X, ChevronsRight, GitBranch, Eye, EyeOff, Activity, CheckCircle, XCircle, User } from 'lucide-react';
+import { X, ChevronsRight, GitBranch, Eye, EyeOff, Activity, CheckCircle, XCircle, User, MessageSquare, Clock, AlertTriangle, Zap, Send, Brain } from 'lucide-react';
 
 // ... (MissionTree component remains the same) ...
 const MissionTree = ({ blocks, currentBlockId }) => {
@@ -55,6 +55,157 @@ const MissionTree = ({ blocks, currentBlockId }) => {
   );
 };
 
+/**
+ * AI Debug Panel - Shows request/response flow for AI chat
+ */
+const AIDebugPanel = ({ chatDebugData = [] }) => {
+  const [showDetails, setShowDetails] = useState({});
+
+  const toggleDetails = (index) => {
+    setShowDetails(prev => ({
+      ...prev,
+      [index]: !prev[index]
+    }));
+  };
+
+  const formatTime = (timestamp) => {
+    return new Date(timestamp).toLocaleTimeString();
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'success': return 'text-green-400';
+      case 'error': return 'text-red-400';
+      case 'loading': return 'text-yellow-400';
+      default: return 'text-gray-400';
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'success': return <CheckCircle size={12} />;
+      case 'error': return <XCircle size={12} />;
+      case 'loading': return <Clock size={12} className="animate-spin" />;
+      default: return <Activity size={12} />;
+    }
+  };
+
+  return (
+    <div className="border-t border-gray-700 mt-4 pt-4">
+      <h4 className="font-mono text-sm text-gray-400 mb-2 flex items-center gap-2">
+        <Brain size={14} /> AI Request/Response Log
+      </h4>
+      
+      {chatDebugData.length === 0 ? (
+        <p className="text-xs text-gray-500">No AI interactions logged yet.</p>
+      ) : (
+        <div className="space-y-2 max-h-80 overflow-y-auto">
+          {chatDebugData.slice(-10).reverse().map((entry, index) => {
+            const isExpanded = showDetails[index];
+            return (
+              <div key={index} className="bg-gray-800/50 rounded-md p-2 font-mono text-xs">
+                <div 
+                  className="flex items-center justify-between cursor-pointer"
+                  onClick={() => toggleDetails(index)}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={getStatusColor(entry.status)}>
+                      {getStatusIcon(entry.status)}
+                    </span>
+                    <span className="text-gray-300">
+                      {formatTime(entry.timestamp)}
+                    </span>
+                    <span className="text-cyan-400 text-xs truncate max-w-32">
+                      "{entry.userMessage.substring(0, 30)}..."
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {entry.responseTime && (
+                      <span className="text-gray-500 text-xs">
+                        {entry.responseTime}ms
+                      </span>
+                    )}
+                    {isExpanded ? <EyeOff size={12} /> : <Eye size={12} />}
+                  </div>
+                </div>
+                
+                {isExpanded && (
+                  <div className="mt-2 space-y-2 border-t border-gray-600 pt-2">
+                    {/* Request Details */}
+                    <div>
+                      <p className="text-gray-400 flex items-center gap-1">
+                        <Send size={10} /> Request:
+                      </p>
+                      <div className="pl-3 text-gray-300">
+                        <p><span className="text-gray-500">Message:</span> "{entry.userMessage}"</p>
+                        <p><span className="text-gray-500">User:</span> {entry.userInfo ? 'Authenticated' : 'Anonymous'}</p>
+                        <p><span className="text-gray-500">Endpoint:</span> {entry.endpoint}</p>
+                      </div>
+                    </div>
+                    
+                    {/* Response Details */}
+                    {entry.status === 'success' && entry.aiResponse && (
+                      <div>
+                        <p className="text-gray-400 flex items-center gap-1">
+                          <MessageSquare size={10} /> Response:
+                        </p>
+                        <div className="pl-3 text-gray-300">
+                          <p><span className="text-gray-500">Message:</span> "{entry.aiResponse.substring(0, 100)}..."</p>
+                          {entry.debug && (
+                            <>
+                              <p><span className="text-gray-500">Provider:</span> {entry.debug.provider}</p>
+                              <p><span className="text-gray-500">Emotion:</span> {entry.debug.emotionalState?.emotion}</p>
+                              <p><span className="text-gray-500">Learning Style:</span> {entry.debug.learningStyle}</p>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Error Details */}
+                    {entry.status === 'error' && entry.error && (
+                      <div>
+                        <p className="text-red-400 flex items-center gap-1">
+                          <AlertTriangle size={10} /> Error:
+                        </p>
+                        <div className="pl-3 text-red-300">
+                          <p><span className="text-gray-500">Message:</span> {entry.error.message || entry.error}</p>
+                          {entry.error.debug && (
+                            <>
+                              <p><span className="text-gray-500">AI Error:</span> {entry.error.debug.aiError}</p>
+                              <p><span className="text-gray-500">Available Providers:</span> {entry.error.debug.availableProviders?.join(', ')}</p>
+                              <p><span className="text-gray-500">Default Provider:</span> {entry.error.debug.defaultProvider}</p>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Network Details */}
+                    <div>
+                      <p className="text-gray-400 flex items-center gap-1">
+                        <Zap size={10} /> Network:
+                      </p>
+                      <div className="pl-3 text-gray-300">
+                        <p><span className="text-gray-500">Status:</span> {entry.status}</p>
+                        {entry.responseTime && (
+                          <p><span className="text-gray-500">Response Time:</span> {entry.responseTime}ms</p>
+                        )}
+                        {entry.httpStatus && (
+                          <p><span className="text-gray-500">HTTP Status:</span> {entry.httpStatus}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
 /**
  * A sub-component to display the user's current traits.
@@ -129,10 +280,11 @@ const LastAnalysis = ({ analysis }) => {
 };
 
 
-const DebugPanel = ({ isOpen, onClose, lesson, onJump, currentBlockId, lastAnalysis, userTags }) => {
+const DebugPanel = ({ isOpen, onClose, lesson, onJump, currentBlockId, lastAnalysis, userTags, chatDebugData = [] }) => {
   const [showTree, setShowTree] = useState(false);
+  const [showAIDebug, setShowAIDebug] = useState(true);
 
-  if (!isOpen || !lesson) return null;
+  if (!isOpen) return null;
 
   return (
     <>
@@ -145,42 +297,61 @@ const DebugPanel = ({ isOpen, onClose, lesson, onJump, currentBlockId, lastAnaly
           </button>
         </div>
 
+        {/* AI Debug Toggle */}
         <div className="space-y-2 mb-4">
             <button 
-                onClick={() => setShowTree(!showTree)}
-                className="w-full flex items-center justify-between text-left px-3 py-2 rounded transition-colors text-sm bg-white/5 hover:bg-white/10 text-gray-300"
+                onClick={() => setShowAIDebug(!showAIDebug)}
+                className="w-full flex items-center justify-between text-left px-3 py-2 rounded transition-colors text-sm bg-green-500/10 hover:bg-green-500/20 text-green-300 border border-green-500/30"
             >
-                <span className="flex items-center gap-2"><GitBranch size={16} /> Mission Tree</span>
-                {showTree ? <EyeOff size={16} /> : <Eye size={16} />}
+                <span className="flex items-center gap-2"><Brain size={16} /> AI Chat Debug</span>
+                {showAIDebug ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
         </div>
 
-        {showTree && <MissionTree blocks={lesson.blocks} currentBlockId={currentBlockId} />}
+        {/* AI Debug Panel - Always show if not in lesson mode */}
+        {showAIDebug && <AIDebugPanel chatDebugData={chatDebugData} />}
 
-        {/* Display the current user traits */}
-        <UserTraits tags={userTags} />
-
-        {/* Display the last analysis here */}
-        <LastAnalysis analysis={lastAnalysis} />
-
-        <div className="border-t border-gray-700 mt-4 pt-4">
-            <h4 className="font-mono text-sm text-gray-400 mb-2">Jump to Block:</h4>
-            <ul className="space-y-1">
-            {lesson.blocks.map((block, index) => (
-                <li key={block.block_id}>
+        {/* Lesson Debug (only show if lesson exists) */}
+        {lesson && (
+          <>
+            <div className="space-y-2 mb-4 mt-6">
                 <button 
-                    onClick={() => onJump(block.block_id)} 
-                    className={`w-full text-left px-3 py-2 rounded transition-colors text-sm ${currentBlockId === block.block_id ? 'bg-cyan-500/30 text-cyan-200 font-semibold' : 'text-gray-300 hover:bg-white/10'}`}
+                    onClick={() => setShowTree(!showTree)}
+                    className="w-full flex items-center justify-between text-left px-3 py-2 rounded transition-colors text-sm bg-white/5 hover:bg-white/10 text-gray-300"
                 >
-                    <span className="flex items-center gap-2">
-                    {currentBlockId === block.block_id && <ChevronsRight size={16} />}
-                    {index + 1}. {block.block_id}
-                    </span>
+                    <span className="flex items-center gap-2"><GitBranch size={16} /> Mission Tree</span>
+                    {showTree ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
-                </li>
-            ))}
-            </ul>
-        </div>
+            </div>
+
+            {showTree && <MissionTree blocks={lesson.blocks} currentBlockId={currentBlockId} />}
+
+            {/* Display the current user traits */}
+            <UserTraits tags={userTags} />
+
+            {/* Display the last analysis here */}
+            <LastAnalysis analysis={lastAnalysis} />
+
+            <div className="border-t border-gray-700 mt-4 pt-4">
+                <h4 className="font-mono text-sm text-gray-400 mb-2">Jump to Block:</h4>
+                <ul className="space-y-1">
+                {lesson.blocks.map((block, index) => (
+                    <li key={block.block_id}>
+                    <button 
+                        onClick={() => onJump(block.block_id)} 
+                        className={`w-full text-left px-3 py-2 rounded transition-colors text-sm ${currentBlockId === block.block_id ? 'bg-cyan-500/30 text-cyan-200 font-semibold' : 'text-gray-300 hover:bg-white/10'}`}
+                    >
+                        <span className="flex items-center gap-2">
+                        {currentBlockId === block.block_id && <ChevronsRight size={16} />}
+                        {index + 1}. {block.block_id}
+                        </span>
+                    </button>
+                    </li>
+                ))}
+                </ul>
+            </div>
+          </>
+        )}
       </div>
     </>
   );

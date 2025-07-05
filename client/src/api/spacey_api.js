@@ -2,14 +2,13 @@ import axios from 'axios';
 // You might need to import your firebase auth instance if you implement token-based auth
 // import { auth } from '../firebaseConfig'; 
 
-// Get the API base URL from environment variables
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+// Get the API base URL from environment variables with fallback
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 // Create an Axios instance with a base URL.
 // This is good practice so you don't have to type the full URL everywhere.
 const apiClient = axios.create({
-  // IMPORTANT: This is a placeholder URL. Replace it with your actual backend endpoint later.
-  baseURL: `${API_BASE_URL}/api/chat`, // e.g., 'http://localhost:5000/api' or 'https://your-production-url.com/api'
+  baseURL: `${API_BASE_URL}/api/chat`,
   headers: {
     'Content-Type': 'application/json',
   }
@@ -30,7 +29,9 @@ export const sendChatMessageToAI = async (message, userInfo) => {
     // const token = await auth.currentUser.getIdToken();
     // apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
-    console.log("Sending to backend:", { message, userInfo });
+    console.log("🔗 API Base URL:", API_BASE_URL);
+    console.log("📡 Full API URL:", `${API_BASE_URL}/api/chat/spacey`);
+    console.log("📤 Sending to backend:", { message, userInfo });
 
     // The payload sent to your backend API.
     // It includes the user's message and any relevant user context.
@@ -54,6 +55,16 @@ export const sendChatMessageToAI = async (message, userInfo) => {
 
   } catch (error) {
     console.error("Error calling AI backend:", error);
+    console.error("Error details:", {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      config: {
+        url: error.config?.url,
+        method: error.config?.method,
+        baseURL: error.config?.baseURL
+      }
+    });
     // Re-throw a more specific error or return a default error message.
     throw new Error("Failed to get a response from the AI. Please try again.");
   }

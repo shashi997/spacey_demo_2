@@ -1,4 +1,4 @@
-// e:\Spacey-Intern\spacey_first_demo\spacey_demo_2\client\src\pages\LessonPage.jsx
+// e:\Spacey-Intern\spacey_second_demo\spacey_demo_2\client\src\pages\LessonPage.jsx
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -17,10 +17,10 @@ import CharacterModel from '../components/lesson/CharacterModel';
 import DebugPanel from '../components/debug/DebugPanel';
 import LessonImage from '../components/lesson/LessonImage';
 import AiFeedback from '../components/lesson/AiFeedback';
-import LogPanel from '../components/lesson/LogPanel'; // Import the new LogPanel
+import LogPanel from '../components/lesson/LogPanel';
+// Hooks
+import useAudio from '../hooks/useAudio';
 
-// Assets
-import marsSceneJpg from '/images/mars-scene.jpg';
 
 const fetchLessonData = async (lessonId) => {
   try {
@@ -47,8 +47,8 @@ const LessonPage = () => {
   const [pageState, setPageState] = useState('idle'); 
   const [pendingNavigation, setPendingNavigation] = useState(null);
   const [backendAiMessage, setBackendAiMessage] = useState(null);
-  const [analysisLog, setAnalysisLog] = useState([]); // New state for the log
-  const [isLogOpen, setIsLogOpen] = useState(false); // New state for log visibility
+  const [analysisLog, setAnalysisLog] = useState([]);
+  const [isLogOpen, setIsLogOpen] = useState(false);
 
   const loadLesson = useCallback(() => {
     setIsLoading(true);
@@ -57,7 +57,7 @@ const LessonPage = () => {
     setLastAnalysis(null);
     setPageState('idle');
     setPendingNavigation(null);
-    setAnalysisLog([]); // Reset the log on new mission
+    setAnalysisLog([]);
     fetchLessonData(lessonId).then(data => {
       if (data && data.blocks && data.blocks.length > 0) {
         setLesson(data);
@@ -81,6 +81,11 @@ const LessonPage = () => {
     const blockIndex = lesson.blocks.findIndex(b => b.block_id === currentBlockId);
     return { currentBlock: lesson.blocks[blockIndex], currentBlockIndex: blockIndex };
   }, [lesson, currentBlockId]);
+
+  // --- NEW: Use the audio hook to play sound from the current block ---
+  const audioSrc = useMemo(() => currentBlock?.media?.audio, [currentBlock]);
+  useAudio(audioSrc);
+  // --- END OF NEW CODE ---
 
   const handleNavigate = useCallback((nextBlockId) => {
     if (nextBlockId) {
@@ -107,7 +112,6 @@ const LessonPage = () => {
         setLastAnalysis(response);
         setBackendAiMessage(response.ai_message);
         
-        // Add the new analysis message to our log
         if (response.ai_message && !response.error) {
           setAnalysisLog(prevLog => [...prevLog, response.ai_message]);
         }
@@ -226,7 +230,7 @@ const LessonPage = () => {
       );
     }
 
-    const lessonImageSrc = lessonId === 'mars_energy' ? marsSceneJpg : null;
+    const lessonImageSrc = currentBlock?.media?.image;
 
     return (
       <>
@@ -242,7 +246,7 @@ const LessonPage = () => {
                 ></div>
             </div>
         </div>
-        <LessonImage src={lessonImageSrc} alt="A view of the Mars base in crisis" />
+        <LessonImage src={lessonImageSrc} alt={currentBlock?.content || lesson.title} />
         {renderLessonFlow()}
       </>
     );
@@ -292,7 +296,7 @@ const LessonPage = () => {
 
         <div className="flex flex-col md:flex-row items-start w-full max-w-screen-xl mx-auto gap-8">
           
-          <div className="relative w-full md:w-2/5 h-80 md:h-[600px] sticky top-24">
+          <div className="relative w-full md:w-2/5 h-80 md:h-[600px] top-24">
             {lesson && !isLoading && (
               <div className="absolute top-0 left-0 right-0 z-10 p-4 text-center md:text-left">
                 <h1 className="text-3xl md:text-4xl font-bold text-cyan-300 mb-2 tracking-wide">

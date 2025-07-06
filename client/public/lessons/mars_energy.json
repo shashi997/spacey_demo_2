@@ -1,17 +1,41 @@
 {
     "mission_id": "mars_energy",
     "title": "Mars Energy Dilemma",
-    "total_blocks": 12, 
+    "total_blocks": 13, 
     "blocks": [   
         {
             "block_id": "Opening Scene",
             "type": "narration",
-            "content": "You are the Systems Commander of the Mars Base Ares-X. At 05:43 MCT, the main energy core shuts down."
+            "content": "You are the Systems Commander of the Mars Base Ares-X. At 05:43 MCT, the main energy core shuts down.",
+            "media": {
+                "image": "/images/mars_base_dark.png",
+                "audio": "/audio/emergency_klaxon.mp3"
+            },
+            "ai_check": {
+                "type": "initial_understanding_check",
+                "prompt_template_id": "opening_scene_prompt",
+                "question_to_user": "Summarize the two most critical pieces of information you have right now.",
+                "retry_limit": 2,
+                "on_failure_next_block": "Remedial Opening Scene"
+            },
+            "next_block": "Initial Scan"
+        },
+        {
+            "block_id": "Remedial Opening Scene",
+            "type": "narration",
+            "content": "Let's refocus. The two key facts are: the main energy core is offline, and the clock is ticking. Every decision matters. Let's proceed.",
+            "media": {
+                "audio": "/audio/ai_guidance_chime.mp3"
+            },
+            "next_block": "Initial Scan"
         },
         {
             "block_id": "Initial Scan",
             "type": "choice",
             "content": "System alerts appear. Oxygen levels steady. Temperature dropping. Power estimated to last: 45 minutes.",
+            "media": {
+                "image": "/images/control_panel_alerts.gif"
+            },
             "choices": [
                 {
                     "text": "Scan for solar interference",
@@ -25,12 +49,21 @@
                     "tag": "active",
                     "ai_reaction": "Player chose to investigate internal systems first."
                 }
-            ]
+            ],
+            "ai_check": {
+                "type": "decision_rationale_check",
+                "prompt_template_id": "initial_scan_rationale_prompt",
+                "question_to_user": "Briefly, why did you make that choice?",
+                "retry_limit": 1
+            }
         },
         {
             "block_id": "Solar Flare Detected",
             "type": "choice",
             "content": "You detect a spike. A flare may have disrupted the power grid. Communication with Earth is delayed.",
+            "media": {
+                "image": "/images/solar_flare_view.jpg"
+            },
             "choices": [
                 {
                     "text": "Shut down non-essential systems",
@@ -50,6 +83,9 @@
             "block_id": "Circuit Burn",
             "type": "choice",
             "content": "You find a circuit overload in the cooling array. It’s overheating.",
+            "media": {
+                "image": "/images/burnt_circuit.gif"
+            },
             "choices": [
                 {
                     "text": "Divert coolant from hydroponics",
@@ -88,6 +124,9 @@
             "block_id": "Complication",
             "type": "choice",
             "content": "Your decision causes an unexpected secondary failure: Life support systems begin to degrade. This raises the stakes.",
+            "media": {
+                "audio": "/audio/life_support_warning.mp3"
+            },
             "choices": [
               {
                 "text": "Reroute energy manually",
@@ -123,6 +162,9 @@
           "block_id": "Last Major Decision",
           "type": "choice",
           "content": "Power restored partially. You must decide which part of base gets priority:",
+          "media": {
+            "image": "/images/base_power_schematic.jpg"
+          },
           "choices": [
             {
               "text": "Life support",
@@ -264,7 +306,8 @@
             "Consequences of early decisions",
             "Real-world systems thinking under pressure",
             "Opportunity for ethical discussions in class"
-          ]
+          ],
+          "next_block": null
         }
     ]
 }

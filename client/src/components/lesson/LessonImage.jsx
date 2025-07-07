@@ -13,7 +13,7 @@ const LessonImage = ({ src, alt }) => {
       <img
         src={src}
         alt={alt}
-        className="w-full h-56 object-cover rounded-lg border border-white/10 shadow-lg shadow-cyan-500/10"
+        className="w-full h-80 object-contain rounded-lg border border-white/10 shadow-lg shadow-cyan-500/10"
       />
     </div>
   );

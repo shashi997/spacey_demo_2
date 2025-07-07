@@ -1,44 +1,58 @@
 // src/components/dashboard/AI_Avatar.jsx
 
-import { useRef, useState } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei'
+import { useGLTF, useAnimations } from '@react-three/drei';
 
+function TalkingModel({ isTalking }) {
+  const group = useRef();
+  const { scene, animations } = useGLTF('/models/Talking1.glb');
+  const { actions, names } = useAnimations(animations, group);
+  const [animationName, setAnimationName] = useState(null);
 
-// A more descriptive name for the 3D model component
-function Box(props) {
-  // This reference gives us direct access to the THREE.Mesh object
-    const ref = useRef()
-    // Hold state for hovered and clicked events
-    const [hovered, hover] = useState(false)
-    const [clicked, click] = useState(false)
-    // Subscribe this component to the render-loop, rotate the mesh every frame
-    useFrame((state, delta) => (ref.current.rotation.x += delta))
-    // Return the view, these are regular Threejs elements expressed in JSX
-    return (
-      <mesh
-        {...props}
-        ref={ref}
-        scale={clicked ? 1.5 : 1}
-        onClick={(event) => click(!clicked)}
-        onPointerOver={(event) => (event.stopPropagation(), hover(true))}
-        onPointerOut={(event) => hover(false)}>
-        <boxGeometry args={[1.2, 1.2, 1.2]} />
-        <meshStandardMaterial color={hovered ? '#A78BFA' : '#22D3EE'} />
-      </mesh>
-    )
+  // Floating effect
+  useFrame((state) => {
+    if (group.current) {
+      const t = state.clock.getElapsedTime();
+      group.current.position.y = Math.sin(t * 1.5) * 0.08 - 1.4; // Smoother float
+    }
+  });
+
+  useEffect(() => {
+    if (names.length > 0) {
+      setAnimationName(names[0]); // Auto-pick first animation
+    }
+  }, [names]);
+
+  useEffect(() => {
+    if (!animationName || !actions[animationName]) return;
+    const action = actions[animationName];
+
+    if (isTalking) {
+      action.reset().fadeIn(0.3).play();
+    } else {
+      action.fadeOut(0.2);
+    }
+  }, [isTalking, animationName, actions]);
+
+  return (
+    <group
+      ref={group}
+      scale={1.35}
+      rotation={[0, Math.PI / 11, 0]} // 
+      position={[0, -1.4, 0]}
+    >
+      <primitive object={scene} />
+    </group>
+  );
 }
 
-// The main export component, now named more clearly
-export default function AIAvatar() {
+export default function AI_Avatar({ isAnimating }) {
   return (
-    <Canvas>
-      <ambientLight intensity={Math.PI / 2} />
-      <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} decay={0} intensity={Math.PI} />
-      <pointLight position={[-10, -10, -10]} decay={0} intensity={Math.PI} />
-      <Box position={[-1.2, 0, 0]} />
-      <Box position={[1.2, 0, 0]} />
-      <OrbitControls />
+    <Canvas camera={{ position: [0, 1.6, 3.8], fov: 30 }}>
+      <ambientLight intensity={0.6} />
+      <directionalLight position={[2, 4, 2]} intensity={1.2} />
+      <TalkingModel isTalking={isAnimating} />
     </Canvas>
   );
 }

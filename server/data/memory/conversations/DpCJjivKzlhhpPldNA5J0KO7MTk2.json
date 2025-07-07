@@ -1,0 +1,22 @@
+[
+  {
+    "id": "1751879850023-m5dsnxhgq",
+    "timestamp": "2025-07-07T09:17:30.023Z",
+    "userMessage": "so what do you think we should study about today ??",
+    "aiResponse": "Well, that depends on what fascinates *you*! We could explore anything from the mind-bending physics of black holes to the surprisingly complex social lives of ants. Where does your curiosity lead you today?\n",
+    "metadata": {
+      "emotionalState": {
+        "emotion": "uncertain",
+        "confidence": 0.6
+      },
+      "learningStyle": "unknown",
+      "timestamp": "2025-07-07T09:17:30.022Z",
+      "provider": "gemini",
+      "emotionalConfidence": 0.6,
+      "messageLength": 51,
+      "responseLength": 208,
+      "topicsDetected": [],
+      "sessionId": "session-1751879850023-ze0cspqxs"
+    }
+  }
+]

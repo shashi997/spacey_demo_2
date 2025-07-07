@@ -1,0 +1,44 @@
+{
+  "userId": "DpCJjivKzlhhpPldNA5J0KO7MTk2",
+  "createdAt": "2025-07-07T09:17:26.025Z",
+  "lastActive": "2025-07-07T09:17:26.025Z",
+  "stats": {
+    "totalInteractions": 0,
+    "totalSessions": 0,
+    "averageSessionLength": 0,
+    "lastSessionStart": null,
+    "currentSessionInteractions": 0
+  },
+  "learning": {
+    "preferredStyle": "unknown",
+    "comprehensionLevel": "beginner",
+    "engagementPattern": "neutral",
+    "preferredTopics": [],
+    "strugglingTopics": [],
+    "masteredConcepts": []
+  },
+  "emotional": {
+    "dominantMood": "neutral",
+    "moodHistory": [],
+    "frustrationsTriggered": [],
+    "excitementTriggers": [],
+    "supportNeeds": []
+  },
+  "communication": {
+    "averageMessageLength": 0,
+    "vocabularyLevel": "standard",
+    "questionTypes": [],
+    "responseSpeed": "normal",
+    "preferredExplanationDepth": "medium"
+  },
+  "topics": {
+    "interests": {},
+    "knowledge": {},
+    "recentTopics": [],
+    "topicProgression": []
+  },
+  "sessions": {
+    "currentSessionId": null,
+    "recentSessions": []
+  }
+}

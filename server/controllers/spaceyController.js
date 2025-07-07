@@ -1,10 +1,12 @@
 const { aiProviderManager } = require('./aiProviders');
 const { conversationMemory } = require('./conversationMemory');
+const { persistentMemory } = require('./persistentMemory');
 const { traitAnalyzer } = require('./traitAnalyzer');
 
 console.log('🔧 SpaceyController loaded');
 console.log('🤖 Available AI providers:', Object.keys(aiProviderManager.getAvailableProviders()));
 console.log('🧠 Memory system loaded:', !!conversationMemory);
+console.log('💾 Persistent memory loaded:', !!persistentMemory);
 console.log('🎯 Trait analyzer loaded:', !!traitAnalyzer);
 
 const buildSystemPrompt = (userPrompt, userInfo = {}, conversationContext = {}) => {
@@ -20,7 +22,15 @@ const buildSystemPrompt = (userPrompt, userInfo = {}, conversationContext = {}) 
     emotionalState = { emotion: 'neutral', confidence: 0.5 },
     conversationSummary = 'New user - no previous interactions.',
     learningStyle = 'unknown',
-    recentTopics = []
+    recentTopics = [],
+    totalInteractions = 0,
+    sessionInteractions = 0,
+    preferredTopics = [],
+    strugglingTopics = [],
+    masteredConcepts = [],
+    dominantMood = 'neutral',
+    averageMessageLength = 0,
+    topInterests = []
   } = conversationContext;
 
   // Dynamic personality adjustments based on emotional state
@@ -83,10 +93,19 @@ You are **Spacey**, the witty AI assistant combining Baymax's warm empathy with 
 📚 **LEARNING STYLE**: ${learningStyle}
 🎯 **PERSONALITY ADJUSTMENT**: ${personalityAdjustment}
 
+📊 **USER LEARNING PROFILE**:
+- Total interactions: ${totalInteractions} (${sessionInteractions} this session)
+- Typical mood: ${dominantMood}
+- Average message length: ${Math.round(averageMessageLength)} characters
+- Preferred topics: ${preferredTopics.length ? preferredTopics.slice(0, 3).join(', ') : 'Still discovering'}
+- Areas of struggle: ${strugglingTopics.length ? strugglingTopics.slice(-2).join(', ') : 'None identified yet'}
+- Mastered concepts: ${masteredConcepts.length ? masteredConcepts.slice(-3).join(', ') : 'Building knowledge'}
+- Top interests: ${topInterests.length ? topInterests.slice(0, 3).map(t => `${t.topic} (${Math.round(t.score * 100)}%)`).join(', ') : 'Exploring'}
+
 🌌 **CURRENT SITUATION**:
 - Location: ${location}
 - User traits: ${traits.join(', ')}
-- Recent topics: ${recentTopics.length ? recentTopics.join(', ') : 'None yet'}
+- Recent topics: ${recentTopics.length ? recentTopics.slice(0, 5).join(', ') : 'None yet'}
 
 ---
 
@@ -135,27 +154,27 @@ const chatWithAI = async (req, res) => {
 
         const userId = user?.id || 'anonymous';
 
-        // Get conversation context and emotional analysis
-        const emotionalState = conversationMemory.detectEmotionalState(userId, prompt);
-        const conversationSummary = conversationMemory.summarizeContext(userId);
-        const learningStyle = conversationMemory.getUserLearningStyle(userId);
-        const recentInteractions = conversationMemory.getRecentInteractions(userId, 3);
+        // Get enhanced conversation context and emotional analysis
+        const emotionalState = await persistentMemory.detectEmotionalState(userId, prompt);
+        const conversationSummary = await persistentMemory.summarizeContext(userId);
+        const learningStyle = await persistentMemory.getUserLearningStyle(userId);
+        const enhancedContext = await persistentMemory.generateEnhancedContext(userId);
         
-        // Extract recent topics for context
-        const recentTopics = [];
-        recentInteractions.forEach(interaction => {
-            const msg = interaction.userMessage.toLowerCase();
-            if (msg.includes('mars')) recentTopics.push('Mars');
-            if (msg.includes('black hole')) recentTopics.push('black holes');
-            if (msg.includes('space')) recentTopics.push('space science');
-            if (msg.includes('planet')) recentTopics.push('planets');
-        });
-        
+        // Build comprehensive conversation context
         const conversationContext = {
             emotionalState,
             conversationSummary,
             learningStyle,
-            recentTopics: [...new Set(recentTopics)]
+            recentTopics: enhancedContext.recentTopics,
+            // Enhanced context from persistent memory
+            totalInteractions: enhancedContext.totalInteractions,
+            sessionInteractions: enhancedContext.sessionInteractions,
+            preferredTopics: enhancedContext.preferredTopics || [],
+            strugglingTopics: enhancedContext.strugglingTopics || [],
+            masteredConcepts: enhancedContext.masteredConcepts || [],
+            dominantMood: enhancedContext.dominantMood,
+            averageMessageLength: enhancedContext.averageMessageLength,
+            topInterests: enhancedContext.topInterests || []
         };
         
         console.log('🧠 Emotional state detected:', emotionalState);
@@ -174,15 +193,16 @@ const chatWithAI = async (req, res) => {
             response = await aiProviderManager.generateResponse(fullPrompt);
             console.log('✅ Real LLM response generated:', response.substring(0, 100) + '...');
             
-            // Store the interaction in memory
-            conversationMemory.addInteraction(userId, prompt, response, {
+            // Store the interaction in persistent memory
+            await persistentMemory.addInteraction(userId, prompt, response, {
                 emotionalState,
                 learningStyle,
                 timestamp: new Date().toISOString(),
-                provider: aiProviderManager.defaultProvider
+                provider: aiProviderManager.defaultProvider,
+                emotionalConfidence: emotionalState.confidence
             });
             
-            console.log('💾 Interaction saved to memory');
+            console.log('💾 Interaction saved to persistent memory');
             
         } catch (aiError) {
             console.error('❌ AI generation failed completely:', aiError.message);

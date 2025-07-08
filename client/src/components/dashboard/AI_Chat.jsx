@@ -1,7 +1,7 @@
 // src/components/dashboard/AI_Chat.jsx
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Send } from 'lucide-react';
+import { Send, Mic, MicOff } from 'lucide-react';
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition';
 import useSpeechSynthesis from '../../hooks/useSpeechSynthesis';
 import { useAuth } from '../../hooks/useAuth';
@@ -39,7 +39,11 @@ const AIChat = ({ onDebugDataUpdate, onAiSpeakingChange }) => {
     startListening,
     stopListening,
     isRecognitionSupported: speechSupported
-  } = useSpeechRecognition();
+  } = useSpeechRecognition({
+    onFinalResult: (finalText) => {
+      handleSendMessage(finalText); // automatically sends message when user finishes speaking
+    }
+  });
 
   const {
     speak,
@@ -48,14 +52,12 @@ const AIChat = ({ onDebugDataUpdate, onAiSpeakingChange }) => {
     isSupported: isTtsSupported
   } = useSpeechSynthesis();
 
-  // Update avatar animation state via parent
   useEffect(() => {
     if (onAiSpeakingChange) {
       onAiSpeakingChange(isAiSpeaking);
     }
   }, [isAiSpeaking, onAiSpeakingChange]);
 
-  // Scroll to bottom when messages update
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
@@ -82,12 +84,10 @@ const AIChat = ({ onDebugDataUpdate, onAiSpeakingChange }) => {
       const aiMessage = { sender: 'ai', text: aiData.message };
       setMessages(prev => [...prev, aiMessage]);
 
-      // Speak the response
       if (isTtsSupported && aiData.message) {
         speak(aiData.message);
       }
 
-      // Optional: send debug info
       if (onDebugDataUpdate) {
         onDebugDataUpdate({
           timestamp: Date.now(),
@@ -96,8 +96,7 @@ const AIChat = ({ onDebugDataUpdate, onAiSpeakingChange }) => {
         });
       }
     } catch (err) {
-      const fallback = { sender: 'ai', text: 'Sorry, something went wrong.' };
-      setMessages(prev => [...prev, fallback]);
+      setMessages(prev => [...prev, { sender: 'ai', text: 'Sorry, something went wrong.' }]);
     } finally {
       setIsAiResponding(false);
     }
@@ -106,6 +105,14 @@ const AIChat = ({ onDebugDataUpdate, onAiSpeakingChange }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     handleSendMessage(inputText);
+  };
+
+  const toggleListening = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
   };
 
   return (
@@ -124,6 +131,17 @@ const AIChat = ({ onDebugDataUpdate, onAiSpeakingChange }) => {
             placeholder="Ask me anything..."
             className="flex-1 px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white"
           />
+          {speechSupported && (
+            <button
+              type="button"
+              onClick={toggleListening}
+              className={`p-3 rounded-lg border ${
+                isListening ? 'bg-red-600' : 'bg-gray-600'
+              } text-white`}
+            >
+              {isListening ? <MicOff size={18} /> : <Mic size={18} />}
+            </button>
+          )}
           <button type="submit" className="p-3 bg-cyan-600 text-white rounded-lg">
             <Send size={18} />
           </button>

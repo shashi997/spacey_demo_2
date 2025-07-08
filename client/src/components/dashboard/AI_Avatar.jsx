@@ -39,7 +39,7 @@ function TalkingModel({ isTalking }) {
     <group
       ref={group}
       scale={1.35}
-      rotation={[0, Math.PI / 11, 0]} // 
+      rotation={[0, Math.PI / 11, 0]}
       position={[0, -1.4, 0]}
     >
       <primitive object={scene} />
@@ -47,12 +47,14 @@ function TalkingModel({ isTalking }) {
   );
 }
 
-export default function AI_Avatar({ isAnimating }) {
+export default function AI_Avatar({ isAnimating, isListening }) {
+  const shouldAnimate = isAnimating || isListening;
+
   return (
     <Canvas camera={{ position: [0, 1.6, 3.8], fov: 30 }}>
       <ambientLight intensity={0.6} />
       <directionalLight position={[2, 4, 2]} intensity={1.2} />
-      <TalkingModel isTalking={isAnimating} />
+      <TalkingModel isTalking={shouldAnimate} />
     </Canvas>
   );
 }

@@ -10,6 +10,8 @@ import WebcamFeed from '../components/dashboard/Webcam_Feed';
 import AIChat from '../components/dashboard/AI_Chat';
 import LessonCatalogueModal from '../components/dashboard/LessonCatalogueModal';
 
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition'; // 👈 NEW
+
 const StarCanvas = () => (
   <div className="absolute inset-0 z-0">
     <Canvas>
@@ -24,7 +26,11 @@ const DashboardPage = () => {
   const [chatDebugData, setChatDebugData] = useState([]);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  const [isAnimating, setIsAnimating] = useState(false); // 👈 For AI avatar animation
+  const [isAiSpeaking, setIsAiSpeaking] = useState(false);
+
+  const { isListening } = useSpeechRecognition(); // 👈 NEW
+
+  const isAnimating = isAiSpeaking || isListening; // 👈 Avatar animates on either
 
   const handleChatDebugUpdate = (debugEntry) => {
     setChatDebugData(prev => {
@@ -144,7 +150,7 @@ const DashboardPage = () => {
           <div className="lg:col-start-3 lg:row-start-2 rounded-xl overflow-hidden">
             <AIChat 
               onDebugDataUpdate={handleChatDebugUpdate}
-              onAiSpeakingChange={setIsAnimating} // 👈 Sync avatar animation
+              onAiSpeakingChange={setIsAiSpeaking} // 👈 Tells us when AI is talking
             />
           </div>
         </div>

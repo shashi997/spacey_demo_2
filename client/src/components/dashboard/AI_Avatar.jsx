@@ -57,7 +57,8 @@ export default function AI_Avatar({
   userInfo, 
   onAvatarResponse,
   enablePersonalization = true,
-  className = ""
+  className = "",
+  isExternalSpeaking = false // 👈 NEW PROP
 }) {
   const [isTalking, setIsTalking] = useState(false);
   const [currentResponse, setCurrentResponse] = useState('');
@@ -247,7 +248,7 @@ export default function AI_Avatar({
       <Canvas camera={{ position: [0, 1.6, 3.8], fov: 30 }}>
         <ambientLight intensity={0.6} />
         <directionalLight position={[2, 4, 2]} intensity={1.2} />
-        <TalkingModel isTalking={isTalking || isSpeaking} />
+        <TalkingModel isTalking={isTalking || isSpeaking || isExternalSpeaking} />
       </Canvas>
 
       {/* Avatar Status Overlay */}

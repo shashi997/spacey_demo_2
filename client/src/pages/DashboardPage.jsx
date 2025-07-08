@@ -27,13 +27,9 @@ const DashboardPage = () => {
   const [chatDebugData, setChatDebugData] = useState([]);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-<<<<<<< HEAD
-  const [isAiSpeaking, setIsAiSpeaking] = useState(false);
 
-  const { isListening } = useSpeechRecognition(); // 👈 NEW
 
-  const isAnimating = isAiSpeaking || isListening; // 👈 Avatar animates on either
-=======
+
   const [isAnimating, setIsAnimating] = useState(false);
   
   // Enhanced Avatar States
@@ -44,7 +40,7 @@ const DashboardPage = () => {
   // Refs for component communication
   const webcamRef = useRef(null);
   const { user } = useAuth(); // Get current user for personalization
->>>>>>> a9e649707926d7404b55e0b0eeb2d2fa403f8798
+
 
   const handleChatDebugUpdate = (debugEntry) => {
     setChatDebugData(prev => {
@@ -250,12 +246,14 @@ const DashboardPage = () => {
           {/* Enhanced AI Avatar */}
           <div className="lg:col-span-2 lg:row-span-2 rounded-xl overflow-hidden">
             <AI_Avatar 
-              webcamRef={webcamRef}
-              userInfo={user}
-              onAvatarResponse={handleAvatarResponse}
-              enablePersonalization={enablePersonalization}
-              className="w-full h-full"
-            />
+                    webcamRef={webcamRef}
+                    userInfo={user}
+                    onAvatarResponse={handleAvatarResponse}
+                    enablePersonalization={enablePersonalization}
+                    isExternalSpeaking={isAnimating} //  This controls the talking animation from chat
+                    className="w-full h-full"
+                  />
+
           </div>
 
           {/* Enhanced Webcam Feed with Emotion Detection */}
@@ -271,13 +269,12 @@ const DashboardPage = () => {
           <div className="lg:col-start-3 lg:row-start-2 rounded-xl overflow-hidden">
             <AIChat 
               onDebugDataUpdate={handleChatDebugUpdate}
-<<<<<<< HEAD
-              onAiSpeakingChange={setIsAiSpeaking} // 👈 Tells us when AI is talking
-=======
+
+
               onAiSpeakingChange={setIsAnimating}
               emotionContext={emotionData}
               enableEnhancedChat={enablePersonalization}
->>>>>>> a9e649707926d7404b55e0b0eeb2d2fa403f8798
+
             />
           </div>
         </div>

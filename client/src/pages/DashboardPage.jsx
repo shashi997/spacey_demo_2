@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Stars } from '@react-three/drei';
-import { BookOpen } from 'lucide-react';
+import { BookOpen, Eye, Brain } from 'lucide-react';
 
 import Navbar from '../components/ui/Navbar';
 import DebugPanel from '../components/debug/DebugPanel';
@@ -9,6 +9,7 @@ import AI_Avatar from '../components/dashboard/AI_Avatar';
 import WebcamFeed from '../components/dashboard/Webcam_Feed';
 import AIChat from '../components/dashboard/AI_Chat';
 import LessonCatalogueModal from '../components/dashboard/LessonCatalogueModal';
+import { useAuth } from '../hooks/useAuth';
 
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'; // 👈 NEW
 
@@ -26,11 +27,24 @@ const DashboardPage = () => {
   const [chatDebugData, setChatDebugData] = useState([]);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+<<<<<<< HEAD
   const [isAiSpeaking, setIsAiSpeaking] = useState(false);
 
   const { isListening } = useSpeechRecognition(); // 👈 NEW
 
   const isAnimating = isAiSpeaking || isListening; // 👈 Avatar animates on either
+=======
+  const [isAnimating, setIsAnimating] = useState(false);
+  
+  // Enhanced Avatar States
+  const [enablePersonalization, setEnablePersonalization] = useState(true);
+  const [avatarResponses, setAvatarResponses] = useState([]);
+  const [emotionData, setEmotionData] = useState(null);
+  
+  // Refs for component communication
+  const webcamRef = useRef(null);
+  const { user } = useAuth(); // Get current user for personalization
+>>>>>>> a9e649707926d7404b55e0b0eeb2d2fa403f8798
 
   const handleChatDebugUpdate = (debugEntry) => {
     setChatDebugData(prev => {
@@ -46,6 +60,66 @@ const DashboardPage = () => {
         const newData = [...prev, debugEntry];
         return newData.slice(-50);
       }
+    });
+  };
+
+  // Handle emotion detection from webcam with throttling
+  const handleEmotionDetected = useCallback((emotionData) => {
+    // Only update if emotion data has changed significantly
+    setEmotionData(prevData => {
+      // Simple throttling: don't update if emotion is the same and confidence hasn't changed much
+      if (prevData?.emotionalState?.emotion === emotionData?.emotionalState?.emotion &&
+          Math.abs((prevData?.confidence || 0) - (emotionData?.confidence || 0)) < 0.1) {
+        return prevData;
+      }
+      return emotionData;
+    });
+    
+    console.log('🎭 Emotion detected:', emotionData);
+    
+    // Add to debug data if debug panel is open
+    if (isDebugOpen && emotionData?.emotionalState?.emotion) {
+      setChatDebugData(prev => [...prev, {
+        timestamp: new Date().toISOString(),
+        type: 'emotion_detection',
+        userMessage: `[EMOTION] ${emotionData.emotionalState.emotion}`,
+        aiResponse: emotionData.visualDescription || 'Face detected',
+        debug: {
+          confidence: emotionData.confidence || 0,
+          faceDetected: emotionData.faceDetected || false,
+          rawData: emotionData
+        }
+      }].slice(-50));
+    }
+  }, [isDebugOpen]);
+
+  // Handle avatar responses
+  const handleAvatarResponse = (responseData) => {
+    console.log('🤖 Avatar response:', responseData);
+    setAvatarResponses(prev => [...prev.slice(-9), responseData]); // Keep last 10 responses
+    
+    // Add to debug data
+    setChatDebugData(prev => [...prev, {
+      timestamp: new Date().toISOString(),
+      type: 'avatar_response',
+      userMessage: `[AVATAR] ${responseData.trigger}`,
+      aiResponse: responseData.response,
+      debug: {
+        trigger: responseData.trigger,
+        visualContext: responseData.visualContext,
+        userTraits: responseData.userTraits
+      }
+    }].slice(-50));
+  };
+
+  // Toggle personalization
+  const togglePersonalization = () => {
+    setEnablePersonalization(prev => {
+      const newState = !prev;
+      setToastMessage(newState ? '🧠 Personalization Enabled' : '🧠 Personalization Disabled');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 2000);
+      return newState;
     });
   };
 
@@ -67,6 +141,11 @@ const DashboardPage = () => {
         setShowToast(true);
         setTimeout(() => setShowToast(false), 2000);
       }
+      // Toggle personalization with Ctrl+P
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'p') {
+        event.preventDefault();
+        togglePersonalization();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -84,11 +163,13 @@ const DashboardPage = () => {
         chatDebugData={chatDebugData}
       />
 
+      {/* Enhanced Controls Panel */}
       {!isDebugOpen && (
         <div className="fixed bottom-4 right-4 z-30 pointer-events-none">
           <div className="bg-black/80 backdrop-blur-sm text-gray-400 px-3 py-2 rounded-lg text-xs font-mono border border-gray-600/50 shadow-lg">
             <div className="flex flex-col gap-1">
               <div><span className="text-purple-400">Ctrl</span> + <span className="text-purple-400">i</span> = Debug</div>
+              <div><span className="text-cyan-400">Ctrl</span> + <span className="text-cyan-400">p</span> = Personalization</div>
             </div>
           </div>
         </div>
@@ -100,10 +181,36 @@ const DashboardPage = () => {
             <div className="flex flex-col gap-1">
               <div><span className="text-purple-400">Ctrl</span> + <span className="text-purple-400">i</span> = Toggle</div>
               <div><span className="text-purple-400">Esc</span> = Close</div>
+              <div><span className="text-cyan-400">Ctrl</span> + <span className="text-cyan-400">p</span> = Personalization</div>
             </div>
           </div>
         </div>
       )}
+
+      {/* Status Indicators */}
+      <div className="fixed top-20 left-4 z-30 space-y-2">
+        {/* Personalization Status */}
+        <button
+          onClick={togglePersonalization}
+          className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium transition-all pointer-events-auto ${
+            enablePersonalization 
+              ? 'bg-blue-600/80 text-white border border-blue-400/50' 
+              : 'bg-gray-600/80 text-gray-300 border border-gray-500/50'
+          }`}
+        >
+          <Brain className="w-3 h-3" />
+          <span>{enablePersonalization ? 'Personalization ON' : 'Personalization OFF'}</span>
+        </button>
+
+        {/* Emotion Detection Status */}
+        {emotionData?.faceDetected && emotionData?.emotionalState?.emotion && (
+          <div className="flex items-center gap-2 px-3 py-1 bg-green-600/80 border border-green-400/50 rounded-full text-xs text-white">
+            <Eye className="w-3 h-3" />
+            <span>Emotion: {emotionData.emotionalState.emotion}</span>
+            <span className="text-green-200">({Math.round((emotionData.confidence || 0) * 100)}%)</span>
+          </div>
+        )}
+      </div>
 
       {showToast && (
         <div className="fixed top-20 right-4 z-50 transition-all duration-300 ease-in-out animate-pulse">
@@ -139,22 +246,59 @@ const DashboardPage = () => {
 
       <main className="relative z-20 h-full w-full p-4 pt-20 lg:p-6 lg:pt-20 lg:pl-24">
         <div className="w-full h-full grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 grid-rows-[minmax(200px,0.5fr)_minmax(200px,0.5fr)_1fr] lg:grid-rows-2">
+          
+          {/* Enhanced AI Avatar */}
           <div className="lg:col-span-2 lg:row-span-2 rounded-xl overflow-hidden">
-            <AI_Avatar isAnimating={isAnimating} />
+            <AI_Avatar 
+              webcamRef={webcamRef}
+              userInfo={user}
+              onAvatarResponse={handleAvatarResponse}
+              enablePersonalization={enablePersonalization}
+              className="w-full h-full"
+            />
           </div>
 
+          {/* Enhanced Webcam Feed with Emotion Detection */}
           <div className="lg:col-start-3 lg:row-start-1 rounded-xl overflow-hidden">
-            <WebcamFeed />
+            <WebcamFeed 
+              ref={webcamRef}
+              onEmotionDetected={handleEmotionDetected}
+              enableEmotionDetection={enablePersonalization}
+            />
           </div>
 
+          {/* AI Chat */}
           <div className="lg:col-start-3 lg:row-start-2 rounded-xl overflow-hidden">
             <AIChat 
               onDebugDataUpdate={handleChatDebugUpdate}
+<<<<<<< HEAD
               onAiSpeakingChange={setIsAiSpeaking} // 👈 Tells us when AI is talking
+=======
+              onAiSpeakingChange={setIsAnimating}
+              emotionContext={emotionData}
+              enableEnhancedChat={enablePersonalization}
+>>>>>>> a9e649707926d7404b55e0b0eeb2d2fa403f8798
             />
           </div>
         </div>
       </main>
+
+      {/* Avatar Response History (Development Only) */}
+      {import.meta.env.DEV && avatarResponses.length > 0 && (
+        <div className="fixed bottom-4 left-4 z-30 max-w-sm">
+          <div className="bg-black/60 backdrop-blur-sm rounded-lg p-3 text-xs text-gray-300">
+            <div className="font-mono text-cyan-400 mb-2">Avatar Responses ({avatarResponses.length})</div>
+            <div className="space-y-1 max-h-32 overflow-y-auto">
+              {avatarResponses.slice(-3).map((response, index) => (
+                <div key={index} className="border-l-2 border-cyan-400/30 pl-2">
+                  <div className="text-yellow-400 text-xs">{response.trigger}</div>
+                  <div className="text-gray-300 text-xs truncate">{response.response}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <LessonCatalogueModal
         isOpen={isCatalogueOpen}

@@ -131,106 +131,123 @@ Now respond as Spacey with your unique blend of warmth and wit:
 `;
 };
 
+// Build avatar-specific prompts for contextual responses
+const buildAvatarPrompt = (trigger, userInfo, visualContext, conversationContext) => {
+  const {
+    name = 'Explorer',
+    traits = ['curious']
+  } = userInfo;
+
+  const visualInfo = visualContext ? `
+🎭 **VISUAL ANALYSIS**: I can see the user through their camera
+- Face detected: ${visualContext.faceDetected ? 'Yes' : 'No'}
+- Current emotion: ${visualContext.emotionalState?.emotion || 'neutral'}
+- Confidence: ${Math.round((visualContext.confidence || 0) * 100)}%
+- Visual description: "${visualContext.visualDescription || 'User appears engaged'}"
+- Analysis type: ${visualContext.emotionalState?.modelsAvailable ? 'ML-based' : 'Simulated'}
+` : `
+🎭 **VISUAL ANALYSIS**: No camera feed available
+`;
+
+  const triggerInstructions = {
+    emotion_change: `
+🎯 **AVATAR RESPONSE TYPE**: Emotion Change Response
+The user's emotional state has changed based on their facial expressions. Acknowledge this change naturally and offer appropriate support or encouragement.
+
+**Response Guidelines:**
+- Reference what you "observe" from their expressions
+- Be empathetic to their emotional shift
+- Keep it conversational and supportive
+- Match their energy level appropriately
+`,
+    idle: `
+🎯 **AVATAR RESPONSE TYPE**: Idle Check-In
+The user has been quiet for a while. Proactively engage them with a friendly, encouraging comment.
+
+**Response Guidelines:**
+- Be welcoming and inviting
+- Reference their learning journey or interests
+- Encourage exploration or learning
+- Keep it light and non-intrusive
+`,
+    encouragement: `
+🎯 **AVATAR RESPONSE TYPE**: Encouragement Boost
+The user requested encouragement. Provide genuine, personalized motivation.
+
+**Response Guidelines:**
+- Focus on their strengths and progress
+- Reference their personality traits positively
+- Be enthusiastic but authentic
+- Inspire continued learning
+`,
+    compliment: `
+🎯 **AVATAR RESPONSE TYPE**: Personalized Compliment
+Generate a personalized compliment based on visual cues and their personality.
+
+**Response Guidelines:**
+- Reference what you "see" in their expression or demeanor
+- Connect it to their personality traits
+- Make it specific and genuine
+- Maintain Spacey's witty but warm personality
+`
+  };
+
+  return `
+You are **Spacey**, the witty AI assistant. You're responding as an avatar that can "see" the user through their camera and knows their personality.
+
+🌟 **PERSONALITY**: Blend of Baymax's warmth + JARVIS's wit (60% supportive, 40% clever)
+
+👤 **USER INFO**:
+- Name: ${name}
+- Personality traits: ${traits.join(', ')}
+- Conversation context: ${conversationContext?.conversationSummary || 'New interaction'}
+
+${visualInfo}
+
+${triggerInstructions[trigger] || triggerInstructions.idle}
+
+🎯 **RESPONSE REQUIREMENTS**:
+1. **Length**: 1-3 sentences maximum (avatar responses should be concise)
+2. **Personality**: Spacey's signature blend of warmth and wit
+3. **Visual Integration**: Reference visual cues naturally when available
+4. **Personalization**: Use their traits and context appropriately
+5. **Tone**: ${trigger === 'encouragement' ? 'uplifting and motivating' : trigger === 'emotion_change' ? 'empathetic and supportive' : 'friendly and engaging'}
+
+🚀 **EXAMPLE RESPONSES**:
+- Emotion Change (smile): "That grin's brighter than a supernova! I love seeing that enthusiasm - ready to dive into some stellar learning?"
+- Idle: "Hey there, cosmic explorer! Your curiosity levels are looking stellar today - what shall we discover together?"
+- Encouragement: "Your analytical mind is absolutely brilliant! I've seen how you tackle complex problems - you're destined for greatness!"
+
+Generate your avatar response now:
+`;
+};
+
+// Handle different request types
 const chatWithAI = async (req, res) => {
     try {
         console.log('🎯 Spacey chat request received:', req.body);
         
-        // Get the user's prompt from the request body
-        const { prompt, user } = req.body;
-
-        if (!prompt) {
-            console.log('❌ No prompt provided');
-            return res.status(400).json({ 
-                error: "A prompt is required.",
-                debug: {
-                    received: req.body,
-                    missing: "prompt field"
-                }
-            });
-        }
-
-        console.log('💭 User prompt:', prompt);
-        console.log('👤 User info:', user);
-
+        // Get request data
+        const { prompt, user, type, visualContext, trigger, visualAnalysis } = req.body;
+        
         const userId = user?.id || 'anonymous';
+        console.log('👤 User ID:', userId);
+        console.log('🎭 Request type:', type || 'standard_chat');
 
-        // Get enhanced conversation context and emotional analysis
-        const emotionalState = await persistentMemory.detectEmotionalState(userId, prompt);
-        const conversationSummary = await persistentMemory.summarizeContext(userId);
-        const learningStyle = await persistentMemory.getUserLearningStyle(userId);
-        const enhancedContext = await persistentMemory.generateEnhancedContext(userId);
-        
-        // Build comprehensive conversation context
-        const conversationContext = {
-            emotionalState,
-            conversationSummary,
-            learningStyle,
-            recentTopics: enhancedContext.recentTopics,
-            // Enhanced context from persistent memory
-            totalInteractions: enhancedContext.totalInteractions,
-            sessionInteractions: enhancedContext.sessionInteractions,
-            preferredTopics: enhancedContext.preferredTopics || [],
-            strugglingTopics: enhancedContext.strugglingTopics || [],
-            masteredConcepts: enhancedContext.masteredConcepts || [],
-            dominantMood: enhancedContext.dominantMood,
-            averageMessageLength: enhancedContext.averageMessageLength,
-            topInterests: enhancedContext.topInterests || []
-        };
-        
-        console.log('🧠 Emotional state detected:', emotionalState);
-        console.log('📚 Learning style:', learningStyle);
-        console.log('💭 Conversation context:', conversationSummary);
-
-        // Build the enhanced prompt with personality and context
-        const fullPrompt = buildSystemPrompt(prompt, user, conversationContext);
-        console.log('📝 Enhanced prompt built with context');
-
-        // Use the AI provider manager - NO FALLBACKS
-        console.log('🤖 Generating AI response from real LLM...');
-        let response;
-        
-        try {
-            response = await aiProviderManager.generateResponse(fullPrompt);
-            console.log('✅ Real LLM response generated:', response.substring(0, 100) + '...');
+        // Handle different request types
+        switch (type) {
+            case 'avatar_response':
+                return await handleAvatarResponse(req, res, userId, user, visualContext, trigger);
             
-            // Store the interaction in persistent memory
-            await persistentMemory.addInteraction(userId, prompt, response, {
-                emotionalState,
-                learningStyle,
-                timestamp: new Date().toISOString(),
-                provider: aiProviderManager.defaultProvider,
-                emotionalConfidence: emotionalState.confidence
-            });
+            case 'personalized_compliment':
+                return await handlePersonalizedCompliment(req, res, userId, user, visualAnalysis);
             
-            console.log('💾 Interaction saved to persistent memory');
+            case 'enhanced_chat':
+                return await handleEnhancedChat(req, res, userId, user, prompt, visualContext);
             
-        } catch (aiError) {
-            console.error('❌ AI generation failed completely:', aiError.message);
-            
-            // NO FALLBACKS - Return proper error
-            return res.status(503).json({ 
-                error: "AI service temporarily unavailable",
-                message: "Unable to generate AI response at this time. Please try again in a moment.",
-                debug: {
-                    aiError: aiError.message,
-                    availableProviders: Object.keys(aiProviderManager.getAvailableProviders()),
-                    defaultProvider: aiProviderManager.defaultProvider,
-                    userPrompt: prompt,
-                    timestamp: new Date().toISOString()
-                }
-            });
+            default:
+                return await handleStandardChat(req, res, userId, user, prompt);
         }
-
-        // Send the AI's response back to the client
-        res.json({ 
-            message: response,
-            debug: {
-                provider: aiProviderManager.defaultProvider,
-                emotionalState,
-                learningStyle,
-                timestamp: new Date().toISOString()
-            }
-        });
 
     } catch (error) {
         console.error("❌ Error in chatWithAI:", error);
@@ -243,8 +260,295 @@ const chatWithAI = async (req, res) => {
             }
         });
     }
-}
+};
+
+// Handle avatar contextual responses
+const handleAvatarResponse = async (req, res, userId, user, visualContext, trigger) => {
+    try {
+        console.log('🤖 Generating avatar response for trigger:', trigger);
+        
+        // Get conversation context
+        const conversationSummary = await persistentMemory.summarizeContext(userId);
+        const enhancedContext = await persistentMemory.generateEnhancedContext(userId);
+        
+        const conversationContext = {
+            conversationSummary,
+            ...enhancedContext
+        };
+
+        // Build avatar-specific prompt
+        const avatarPrompt = buildAvatarPrompt(trigger, user, visualContext, conversationContext);
+        
+        // Generate response
+        const response = await aiProviderManager.generateResponse(avatarPrompt);
+        console.log('✅ Avatar response generated:', response.substring(0, 100) + '...');
+
+        // Store interaction with avatar context
+        await persistentMemory.addInteraction(userId, `[AVATAR_${trigger.toUpperCase()}]`, response, {
+            type: 'avatar_response',
+            trigger,
+            visualContext,
+            timestamp: new Date().toISOString()
+        });
+
+        res.json({ 
+            response,
+            type: 'avatar_response',
+            trigger,
+            debug: {
+                provider: aiProviderManager.defaultProvider,
+                timestamp: new Date().toISOString()
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Avatar response error:', error);
+        res.status(500).json({ error: 'Failed to generate avatar response' });
+    }
+};
+
+// Handle personalized compliments
+const handlePersonalizedCompliment = async (req, res, userId, user, visualAnalysis) => {
+    try {
+        console.log('🎭 Generating personalized compliment');
+        
+        // Use avatar response handler with compliment trigger
+        return await handleAvatarResponse(req, res, userId, user, visualAnalysis, 'compliment');
+
+    } catch (error) {
+        console.error('❌ Compliment generation error:', error);
+        res.status(500).json({ error: 'Failed to generate personalized compliment' });
+    }
+};
+
+// Handle enhanced chat with visual context
+const handleEnhancedChat = async (req, res, userId, user, prompt, visualContext) => {
+    try {
+        console.log('🚀 Processing enhanced chat with visual context');
+        
+        // Get conversation context
+        let emotionalState = await persistentMemory.detectEmotionalState(userId, prompt);
+        
+        // Merge visual emotion data if available
+        if (visualContext?.emotionalState?.visual) {
+            console.log('🎭 Merging visual emotion data with text analysis');
+            emotionalState = {
+                emotion: visualContext.emotionalState.emotion,
+                confidence: Math.max(emotionalState.confidence, visualContext.emotionalState.confidence),
+                visual: true,
+                textBased: emotionalState.emotion,
+                visualBased: visualContext.emotionalState.emotion
+            };
+        }
+
+        const conversationSummary = await persistentMemory.summarizeContext(userId);
+        const learningStyle = await persistentMemory.getUserLearningStyle(userId);
+        const enhancedContext = await persistentMemory.generateEnhancedContext(userId);
+        
+        const conversationContext = {
+            emotionalState,
+            conversationSummary,
+            learningStyle,
+            recentTopics: enhancedContext.recentTopics,
+            totalInteractions: enhancedContext.totalInteractions,
+            sessionInteractions: enhancedContext.sessionInteractions,
+            preferredTopics: enhancedContext.preferredTopics || [],
+            strugglingTopics: enhancedContext.strugglingTopics || [],
+            masteredConcepts: enhancedContext.masteredConcepts || [],
+            dominantMood: enhancedContext.dominantMood,
+            averageMessageLength: enhancedContext.averageMessageLength,
+            topInterests: enhancedContext.topInterests || []
+        };
+
+        // Add visual context to the prompt
+        let enhancedPrompt = prompt;
+        if (visualContext?.visualDescription) {
+            enhancedPrompt = `${prompt}
+
+[VISUAL CONTEXT: I can see that ${visualContext.visualDescription}. The user appears ${visualContext.emotionalState.emotion} with ${Math.round(visualContext.confidence * 100)}% confidence.]`;
+        }
+
+        // Build enhanced system prompt
+        const fullPrompt = buildSystemPrompt(enhancedPrompt, user, conversationContext);
+        
+        // Generate response
+        const response = await aiProviderManager.generateResponse(fullPrompt);
+        console.log('✅ Enhanced chat response generated:', response.substring(0, 100) + '...');
+
+        // Store interaction with visual context
+        await persistentMemory.addInteraction(userId, prompt, response, {
+            emotionalState,
+            learningStyle,
+            visualContext,
+            timestamp: new Date().toISOString(),
+            type: 'enhanced_chat'
+        });
+
+        res.json({ 
+            message: response,
+            type: 'enhanced_chat',
+            debug: {
+                provider: aiProviderManager.defaultProvider,
+                emotionalState,
+                learningStyle,
+                visualContext: visualContext ? 'included' : 'none',
+                timestamp: new Date().toISOString()
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Enhanced chat error:', error);
+        res.status(500).json({ error: 'Failed to generate enhanced response' });
+    }
+};
+
+// Handle standard chat (original functionality)
+const handleStandardChat = async (req, res, userId, user, prompt) => {
+    if (!prompt) {
+        console.log('❌ No prompt provided');
+        return res.status(400).json({ 
+            error: "A prompt is required.",
+            debug: {
+                received: req.body,
+                missing: "prompt field"
+            }
+        });
+    }
+
+    console.log('💭 User prompt:', prompt);
+    console.log('👤 User info:', user);
+
+    // Get enhanced conversation context and emotional analysis
+    const emotionalState = await persistentMemory.detectEmotionalState(userId, prompt);
+    const conversationSummary = await persistentMemory.summarizeContext(userId);
+    const learningStyle = await persistentMemory.getUserLearningStyle(userId);
+    const enhancedContext = await persistentMemory.generateEnhancedContext(userId);
+    
+    // Build comprehensive conversation context
+    const conversationContext = {
+        emotionalState,
+        conversationSummary,
+        learningStyle,
+        recentTopics: enhancedContext.recentTopics,
+        // Enhanced context from persistent memory
+        totalInteractions: enhancedContext.totalInteractions,
+        sessionInteractions: enhancedContext.sessionInteractions,
+        preferredTopics: enhancedContext.preferredTopics || [],
+        strugglingTopics: enhancedContext.strugglingTopics || [],
+        masteredConcepts: enhancedContext.masteredConcepts || [],
+        dominantMood: enhancedContext.dominantMood,
+        averageMessageLength: enhancedContext.averageMessageLength,
+        topInterests: enhancedContext.topInterests || []
+    };
+    
+    console.log('🧠 Emotional state detected:', emotionalState);
+    console.log('📚 Learning style:', learningStyle);
+    console.log('💭 Conversation context:', conversationSummary);
+
+    // Build the enhanced prompt with personality and context
+    const fullPrompt = buildSystemPrompt(prompt, user, conversationContext);
+    console.log('📝 Enhanced prompt built with context');
+
+    // Use the AI provider manager - NO FALLBACKS
+    console.log('🤖 Generating AI response from real LLM...');
+    let response;
+    
+    try {
+        response = await aiProviderManager.generateResponse(fullPrompt);
+        console.log('✅ Real LLM response generated:', response.substring(0, 100) + '...');
+        
+        // Store the interaction in persistent memory
+        await persistentMemory.addInteraction(userId, prompt, response, {
+            emotionalState,
+            learningStyle,
+            timestamp: new Date().toISOString(),
+            provider: aiProviderManager.defaultProvider,
+            emotionalConfidence: emotionalState.confidence
+        });
+        
+        console.log('💾 Interaction saved to persistent memory');
+        
+    } catch (aiError) {
+        console.error('❌ AI generation failed completely:', aiError.message);
+        
+        // NO FALLBACKS - Return proper error
+        return res.status(503).json({ 
+            error: "AI service temporarily unavailable",
+            message: "Unable to generate AI response at this time. Please try again in a moment.",
+            debug: {
+                aiError: aiError.message,
+                availableProviders: Object.keys(aiProviderManager.getAvailableProviders()),
+                defaultProvider: aiProviderManager.defaultProvider,
+                userPrompt: prompt,
+                timestamp: new Date().toISOString()
+            }
+        });
+    }
+
+    // Send the AI's response back to the client
+    res.json({ 
+        message: response,
+        debug: {
+            provider: aiProviderManager.defaultProvider,
+            emotionalState,
+            learningStyle,
+            timestamp: new Date().toISOString()
+        }
+    });
+};
+
+// Add new API endpoints for fetching user data
+const getUserTraits = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        console.log('🧠 Fetching traits for user:', userId);
+
+        const analysis = await traitAnalyzer.getLatestAnalysis(userId);
+        
+        res.json({
+            traits: analysis?.traits || ['curious', 'science_minded'],
+            confidence: analysis?.confidence || 0.3,
+            lastUpdated: analysis?.timestamp || new Date().toISOString(),
+            source: analysis ? 'analyzed' : 'default'
+        });
+
+    } catch (error) {
+        console.error('❌ Error fetching user traits:', error);
+        res.status(500).json({ error: 'Failed to fetch user traits' });
+    }
+};
+
+const getContextSummary = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { limit = 5 } = req.query;
+        console.log('💭 Fetching context for user:', userId);
+
+        const summary = await persistentMemory.summarizeContext(userId);
+        const recent = await persistentMemory.getRecentInteractions(userId, parseInt(limit));
+        const emotionalState = await persistentMemory.detectEmotionalState(userId, '');
+        const learningStyle = await persistentMemory.getUserLearningStyle(userId);
+
+        res.json({
+            summary,
+            recentInteractions: recent.map(interaction => ({
+                timestamp: interaction.timestamp,
+                userMessage: interaction.userMessage.substring(0, 100),
+                response: interaction.aiResponse.substring(0, 100)
+            })),
+            emotionalState,
+            learningStyle,
+            totalInteractions: recent.length
+        });
+
+    } catch (error) {
+        console.error('❌ Error fetching context:', error);
+        res.status(500).json({ error: 'Failed to fetch conversation context' });
+    }
+};
 
 module.exports = {
-    chatWithAI
-}
+    chatWithAI,
+    getUserTraits,
+    getContextSummary
+};

@@ -9,7 +9,8 @@
             "content": "You are the Systems Commander of the Mars Base Ares-X. At 05:43 MCT, the main energy core shuts down.",
             "media": {
                 "image": "/images/mars_base_dark.png",
-                "audio": "/audio/emergency_klaxon.mp3"
+                "audio": "/audio/emergency_klaxon.mp3",
+                "3d_model": "/models/jumping_space-suit1.glb"
             },
             "ai_check": {
                 "type": "initial_understanding_check",

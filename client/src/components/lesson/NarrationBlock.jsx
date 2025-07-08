@@ -1,10 +1,11 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Volume2 } from 'lucide-react';
+import { Volume2, SkipForward } from 'lucide-react';
 import useSpeechSynthesis from '../../hooks/useSpeechSynthesis';
 
 const NarrationBlock = ({ block, userTags, onNavigate, getDynamicText }) => {
   const { speak, cancel, isSpeaking, isSupported } = useSpeechSynthesis();
+  const [speechComplete, setSpeechComplete] = useState(false);
 
   // Combine all text content into a single string for the speech synthesizer
   const textToSpeak = [
@@ -13,27 +14,21 @@ const NarrationBlock = ({ block, userTags, onNavigate, getDynamicText }) => {
   ].filter(Boolean).join(' . '); // Join with a period for a natural pause
 
   useEffect(() => {
-    // This function will be called by the hook when speech is finished
     const handleSpeechEnd = () => {
-      if (block.next_block) {
-        onNavigate(block.next_block);
-      }
+      setSpeechComplete(true);
     };
 
-    // If speech is supported, speak the text and provide our callback
     if (isSupported) {
       speak(textToSpeak, { onEnd: handleSpeechEnd });
     }
 
-    // Cleanup: If the component unmounts (e.g., user clicks "Continue" early),
-    // cancel any ongoing speech.
     return () => {
       cancel();
     };
-  }, [block.block_id, textToSpeak, isSupported, speak, cancel, onNavigate]); // Re-run this effect when the block changes
+  }, [block.block_id, textToSpeak, isSupported, speak, cancel]);
 
   const handleManualContinue = () => {
-    cancel(); // Stop any current speech immediately
+    cancel();
     if (block.next_block) {
       onNavigate(block.next_block);
     }
@@ -80,6 +75,7 @@ const NarrationBlock = ({ block, userTags, onNavigate, getDynamicText }) => {
           className="inline-flex items-center gap-3 px-6 py-3 mt-10 font-semibold text-white bg-cyan-600/80 rounded-full hover:bg-cyan-500 transition-colors focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black"
         >
           Continue
+          {isSpeaking && <SkipForward />} {/* Show skip icon while speaking */}
         </button>
       ) : (
         <Link

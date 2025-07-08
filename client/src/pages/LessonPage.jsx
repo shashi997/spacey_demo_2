@@ -18,6 +18,7 @@ import DebugPanel from '../components/debug/DebugPanel';
 import LessonImage from '../components/lesson/LessonImage';
 import AiFeedback from '../components/lesson/AiFeedback';
 import LogPanel from '../components/lesson/LogPanel';
+import MediaDisplay from '../components/lesson/MediaDisplay';
 // Hooks
 import useAudio from '../hooks/useAudio';
 
@@ -230,8 +231,6 @@ const LessonPage = () => {
       );
     }
 
-    const lessonImageSrc = currentBlock?.media?.image;
-
     return (
       <>
         <div className="mb-8">
@@ -246,7 +245,7 @@ const LessonPage = () => {
                 ></div>
             </div>
         </div>
-        <LessonImage src={lessonImageSrc} alt={currentBlock?.content || lesson.title} />
+        <MediaDisplay media={currentBlock?.media} />
         {renderLessonFlow()}
       </>
     );

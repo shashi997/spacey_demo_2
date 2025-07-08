@@ -8,4 +8,17 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  optimizeDeps: {
+    exclude: ['face-api.js']
+  },
+  define: {
+    global: 'globalThis',
+  },
+  resolve: {
+    alias: {
+      'fs': false,
+      'path': false,
+      'os': false,
+    }
+  }
 })

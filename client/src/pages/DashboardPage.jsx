@@ -31,7 +31,7 @@ const DashboardPage = () => {
 
 
   const [isAnimating, setIsAnimating] = useState(false);
-  
+    
   // Enhanced Avatar States
   const [enablePersonalization, setEnablePersonalization] = useState(true);
   const [avatarResponses, setAvatarResponses] = useState([]);
@@ -301,6 +301,7 @@ const DashboardPage = () => {
         isOpen={isCatalogueOpen}
         onClose={() => setCatalogueOpen(false)}
       />
+
     </div>
   );
 };

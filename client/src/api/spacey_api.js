@@ -114,7 +114,7 @@ export const fetchUserTraits = async (userId) => {
   try {
     console.log("🧠 Fetching user traits for:", userId);
 
-    const response = await apiClient.get(`/traits/${userId}`);
+    const response = await apiClient.get(`/profile/traits/${userId}`);
     return response.data;
 
   } catch (error) {

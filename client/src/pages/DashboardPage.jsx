@@ -184,15 +184,15 @@ const DashboardPage = () => {
       )}
 
       {/* Status Indicators */}
-      <div className="fixed top-20 left-4 z-30 space-y-2">
+      <div className="absolute top-14 left-[115px] z-30 space-y-2">
         {/* Personalization Status */}
         <button
           onClick={togglePersonalization}
-          className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium transition-all pointer-events-auto ${
-            enablePersonalization 
-              ? 'bg-blue-600/80 text-white border border-blue-400/50' 
-              : 'bg-gray-600/80 text-gray-300 border border-gray-500/50'
-          }`}
+          className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold transition-all pointer-events-auto shadow-lg backdrop-blur-sm ${
+          enablePersonalization 
+        ? 'bg-blue-700/90 text-white border border-blue-300' 
+        : 'bg-gray-700/90 text-gray-100 border border-gray-400'
+        }`}
         >
           <Brain className="w-3 h-3" />
           <span>{enablePersonalization ? 'Personalization ON' : 'Personalization OFF'}</span>
@@ -200,7 +200,7 @@ const DashboardPage = () => {
 
         {/* Emotion Detection Status */}
         {emotionData?.faceDetected && emotionData?.emotionalState?.emotion && (
-          <div className="flex items-center gap-2 px-3 py-1 bg-green-600/80 border border-green-400/50 rounded-full text-xs text-white">
+        <div className="flex items-center gap-2 px-3 py-1 bg-green-700/90 text-white text-xs font-semibold border border-green-300 rounded-full shadow-lg backdrop-blur-sm">
             <Eye className="w-3 h-3" />
             <span>Emotion: {emotionData.emotionalState.emotion}</span>
             <span className="text-green-200">({Math.round((emotionData.confidence || 0) * 100)}%)</span>
@@ -282,8 +282,8 @@ const DashboardPage = () => {
 
       {/* Avatar Response History (Development Only) */}
       {import.meta.env.DEV && avatarResponses.length > 0 && (
-        <div className="fixed bottom-4 left-4 z-30 max-w-sm">
-          <div className="bg-black/60 backdrop-blur-sm rounded-lg p-3 text-xs text-gray-300">
+        <div className="fixed bottom-28 left-19 z-30 max-w-sm">
+        <div className="bg-black/80 text-white text-sm px-4 py-2 rounded-md shadow-lg backdrop-blur-md max-w-sm">
             <div className="font-mono text-cyan-400 mb-2">Avatar Responses ({avatarResponses.length})</div>
             <div className="space-y-1 max-h-32 overflow-y-auto">
               {avatarResponses.slice(-3).map((response, index) => (

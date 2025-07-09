@@ -148,7 +148,10 @@ const LessonPage = () => {
 
 
   const saveLessonProgress = async (blockId, tags, mediaIndex = 0, completed = false) => {
-    if (!userId || !lessonId) return; // Ensure user and lesson are valid
+    if (!userId || !lessonId || blockId === null || blockId === undefined) {
+      console.warn("Attempted to save lesson progress with invalid blockId:", blockId);
+      return; // Ensure user, lesson, and blockId are valid
+    }
 
     try {
       const progressDocId = `${userId}_${lessonId}`;

@@ -1,6 +1,4 @@
-// e:\Spacey-Intern\spacey_first_demo\spacey_demo_2\client\src\components\ui\Navbar.jsx
-
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { ArrowRight, UserCircle } from 'lucide-react';
 import { signOut } from 'firebase/auth';
@@ -11,6 +9,8 @@ const Navbar = ({ extraControls, rightControls }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentUser } = useAuth();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null); // Ref for the dropdown
 
   const handleLogout = async () => {
     try {
@@ -21,10 +21,32 @@ const Navbar = ({ extraControls, rightControls }) => {
     }
   };
 
+  const toggleDropdown = () => {
+    setIsDropdownOpen(!isDropdownOpen);
+  };
+
+  const closeDropdown = () => {
+    setIsDropdownOpen(false);
+  };
+
   const isDashboard = location.pathname.startsWith('/dashboard') || location.pathname.startsWith('/profile');
   const navBackgroundStyle = (!currentUser || !isDashboard) 
     ? "bg-black/20 backdrop-blur-sm border-b border-white/10" 
     : "";
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        closeDropdown();
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [dropdownRef]);
 
   return (
     <nav className="fixed top-0 left-0 w-full z-50 transition-all duration-300">
@@ -46,22 +68,37 @@ const Navbar = ({ extraControls, rightControls }) => {
           {rightControls}
 
           {currentUser ? (
-            <div className="relative group">
-              <button className="p-1 rounded-full hover:bg-white/10 transition-colors">
+            <div className="relative group" ref={dropdownRef}> {/* Add ref here */}
+              <button 
+                className="p-1 rounded-full hover:bg-white/10 transition-colors"
+                onClick={toggleDropdown}
+              >
                 <UserCircle size={32} className="text-white" />
               </button>
-              <div className="absolute right-0 mt-2 w-56 bg-gray-900/80 backdrop-blur-md border border-gray-700 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-all invisible group-hover:visible pointer-events-none group-hover:pointer-events-auto">
-                <div className="px-4 py-3 border-b border-gray-700">
-                  <p className="text-sm text-gray-400">Signed in as</p>
-                  <p className="text-sm font-medium text-white truncate">{currentUser.email}</p>
+              {/* Dropdown menu */}
+              {isDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-gray-900/80 backdrop-blur-md border border-gray-700 rounded-lg shadow-lg">
+                  <div className="px-4 py-3 border-b border-gray-700">
+                    <p className="text-sm text-gray-400">Signed in as</p>
+                    <p className="text-sm font-medium text-white truncate">{currentUser.email}</p>
+                  </div>
+                  <div className="py-1">
+                    <Link 
+                      to="/profile" 
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-800/80"
+                      onClick={closeDropdown}
+                    >
+                      Profile
+                    </Link>
+                    <button 
+                      onClick={() => { handleLogout(); closeDropdown(); }}
+                      className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-800/80"
+                    >
+                      Logout
+                    </button>
+                  </div>
                 </div>
-                <div className="py-1">
-                  <Link to="/profile" className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-800/80">Profile</Link>
-                  <button onClick={handleLogout} className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-800/80">
-                    Logout
-                  </button>
-                </div>
-              </div>
+              )}
             </div>
           ) : (
             <div className="flex items-center gap-2">

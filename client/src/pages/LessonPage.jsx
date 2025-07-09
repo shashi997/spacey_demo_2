@@ -15,12 +15,16 @@ import ReflectionBlock from '../components/lesson/ReflectionBlock';
 import QuizBlock from '../components/lesson/QuizBlock';
 import CharacterModel from '../components/lesson/CharacterModel';
 import DebugPanel from '../components/debug/DebugPanel';
-import LessonImage from '../components/lesson/LessonImage';
 import AiFeedback from '../components/lesson/AiFeedback';
 import LogPanel from '../components/lesson/LogPanel';
 import MediaDisplay from '../components/lesson/MediaDisplay';
+import LessonProgressIndicator from '../components/lesson/LessonProgressIndicator'; // Import LessonProgressIndicator
 // Hooks
 import useAudio from '../hooks/useAudio';
+
+import { db, auth } from '../firebaseConfig';  // Import Firebase services
+import { doc, setDoc, getDoc, Timestamp } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth'; // Listen for auth changes
 
 
 const fetchLessonData = async (lessonId) => {
@@ -43,6 +47,10 @@ const LessonPage = () => {
   const [error, setError] = useState(null);
   const [isDebuggerOpen, setIsDebuggerOpen] = useState(false);
   const [lastAnalysis, setLastAnalysis] = useState(null);
+  const [userId, setUserId] = useState(null);
+  const [persistentUserTags, setPersistentUserTags] = useState([]); // For global traits
+  const [currentMediaIndex, setCurrentMediaIndex] = useState(0);  // For media progress
+
 
   // --- STATE FOR UI FLOW & LOGS ---
   const [pageState, setPageState] = useState('idle'); 
@@ -50,6 +58,27 @@ const LessonPage = () => {
   const [backendAiMessage, setBackendAiMessage] = useState(null);
   const [analysisLog, setAnalysisLog] = useState([]);
   const [isLogOpen, setIsLogOpen] = useState(false);
+
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setUserId(user.uid);
+      } else {
+        setUserId(null);
+      }
+    });
+    return () => unsubscribe();  // Cleanup on unmount
+  }, []);
+
+  useEffect(() => {
+    if (lessonId && userId) {
+      loadLessonProgress();
+      loadPersistentUserTags();
+    } else if (lessonId && !userId) {  // Only load from scratch if no user is logged in
+    loadLesson();
+  }
+  }, [lessonId, userId]);
 
   const loadLesson = useCallback(() => {
     setIsLoading(true);
@@ -77,6 +106,95 @@ const LessonPage = () => {
     }
   }, [lessonId, loadLesson]);
 
+
+  const loadLessonProgress = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const progressDocId = `${userId}_${lessonId}`;
+      const progressDocRef = doc(db, "lesson_progress", progressDocId);
+      const docSnap = await getDoc(progressDocRef);
+
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setCurrentBlockId(data.currentBlockId);
+        setUserTags(data.userTags);
+        // You might also want to handle loading 'completed' status here.
+        setCurrentMediaIndex(data.currentMediaIndex || 0); // Load media index
+        setLesson(await fetchLessonData(lessonId)); // Load lesson data after progress
+      } else {
+        // If no progress exists, load the lesson and start from the beginning.
+        const lessonData = await fetchLessonData(lessonId);
+        if (lessonData && lessonData.blocks && lessonData.blocks.length > 0) {
+          setLesson(lessonData);
+          setCurrentBlockId(lessonData.blocks[0].block_id);
+          setUserTags([]);
+          setCurrentMediaIndex(0);
+          // Initialize progress in Firestore.
+          await saveLessonProgress(lessonData.blocks[0].block_id, [], 0);
+        } else {
+          setError(`Mission "${lessonId}" not found or is invalid.`);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load or initialize lesson progress:", error);
+      setError("Failed to load lesson progress.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
+
+  const saveLessonProgress = async (blockId, tags, mediaIndex = 0, completed = false) => {
+    if (!userId || !lessonId) return; // Ensure user and lesson are valid
+
+    try {
+      const progressDocId = `${userId}_${lessonId}`;
+      const progressDocRef = doc(db, "lesson_progress", progressDocId);
+      await setDoc(
+        progressDocRef,
+        {
+          currentBlockId: blockId,
+          userTags: tags,
+          currentMediaIndex: mediaIndex, // Save media index
+          completed: completed,
+          lastUpdated: Timestamp.now(),
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      console.error("Failed to save lesson progress:", error);
+    }
+  };
+
+  const loadPersistentUserTags = async () => {
+    if (!userId) return;
+    try {
+      const userDocRef = doc(db, "user_traits", userId); // Separate collection
+      const docSnap = await getDoc(userDocRef);
+      if (docSnap.exists()) {
+        setPersistentUserTags(docSnap.data().tags || []);
+      } else {
+        setPersistentUserTags([]);
+      }
+    } catch (error) {
+      console.error("Failed to load persistent user tags:", error);
+    }
+  };
+
+  const savePersistentUserTags = async (tags) => {
+    if (!userId) return;
+    try {
+      const userDocRef = doc(db, "user_traits", userId);
+      await setDoc(userDocRef, { tags }, { merge: true });
+    } catch (error) {
+      console.error("Failed to save persistent user tags:", error);
+    }
+  };
+
+
   const { currentBlock, currentBlockIndex } = useMemo(() => {
     if (!lesson || !currentBlockId) return { currentBlock: null, currentBlockIndex: -1 };
     const blockIndex = lesson.blocks.findIndex(b => b.block_id === currentBlockId);
@@ -91,8 +209,9 @@ const LessonPage = () => {
   const handleNavigate = useCallback((nextBlockId) => {
     if (nextBlockId) {
       setCurrentBlockId(nextBlockId);
+      saveLessonProgress(nextBlockId, userTags, currentMediaIndex);
     }
-  }, []);
+  }, [userTags, saveLessonProgress, currentMediaIndex]);
 
   const handleChoice = useCallback((choice) => {
     const { next_block, tag } = choice;
@@ -121,8 +240,16 @@ const LessonPage = () => {
             setUserTags(prevTags => {
                 const withAdded = [...new Set([...prevTags, ...(response.added_traits || [])])];
                 const withRemoved = withAdded.filter(t => !(response.removed_traits || []).includes(t));
+                saveLessonProgress(currentBlock.next_block || pendingNavigation, withRemoved, currentMediaIndex); // Save with updated tags
+                // Update persistent traits
+                const updatedPersistentTags = [...new Set([...persistentUserTags, ...withAdded])].filter(t => !response.removed_traits?.includes(t));
+                savePersistentUserTags(updatedPersistentTags);
+                setPersistentUserTags(updatedPersistentTags);
                 return withRemoved;
             });
+        }
+        else {
+          saveLessonProgress(currentBlock.next_block || pendingNavigation, userTags, currentMediaIndex);  // Save even if no tag changes
         }
         
         setPageState('feedback');
@@ -130,11 +257,19 @@ const LessonPage = () => {
         console.error("Failed to analyze interaction:", err);
         handleNavigate(next_block);
         setPageState('idle');
+        saveLessonProgress(next_block, userTags); // Save progress even on failure
       }
     };
 
     runAnalysis();
-  }, [userTags, lesson, currentBlock, handleNavigate]);
+  }, [userTags, lesson, currentBlock, handleNavigate, pendingNavigation, saveLessonProgress, currentMediaIndex, persistentUserTags, savePersistentUserTags]);
+
+
+  // When lesson is completed (e.g. in Debrief block or similar)
+  const markLessonAsComplete = useCallback(() => {
+    saveLessonProgress(currentBlockId, userTags, true); // Mark as completed.
+  }, [currentBlockId, userTags, saveLessonProgress]); // Added saveLessonProgress
+
 
   const handleFeedbackComplete = useCallback(() => {
     setPageState('idle');
@@ -160,8 +295,11 @@ const LessonPage = () => {
 
   const handleReplay = useCallback(() => {
     loadLesson();
+    loadPersistentUserTags().then(() => { // Ensure persistent tags are loaded first
+      setUserTags(persistentUserTags); // Apply persistent traits to current lesson
+    });
     setIsDebuggerOpen(false);
-  }, [loadLesson]);
+  }, [loadLesson, loadPersistentUserTags, persistentUserTags, setUserTags]);
 
   const handleJumpToBlock = useCallback((blockId) => {
     setPageState('idle');
@@ -198,6 +336,9 @@ const LessonPage = () => {
 
         switch (augmentedBlock.type) {
           case 'narration':
+            if (augmentedBlock.block_id === "Debrief") {
+              markLessonAsComplete();
+            }
             return <NarrationBlock block={augmentedBlock} onNavigate={handleNavigate} getDynamicText={getDynamicText} userTags={userTags} />;
           case 'choice':
             return <ChoiceBlock block={currentBlock} onChoice={handleChoice} />;
@@ -245,11 +386,17 @@ const LessonPage = () => {
                 ></div>
             </div>
         </div>
-        <MediaDisplay media={currentBlock?.media} />
+        <MediaDisplay media={currentBlock?.media} initialIndex={currentMediaIndex} onMediaChange={handleMediaChange}  />
         {renderLessonFlow()}
       </>
     );
   };
+
+
+  const handleMediaChange = useCallback((index) => {
+    setCurrentMediaIndex(index);
+    saveLessonProgress(currentBlockId, userTags, index); // Save media index
+  }, [currentBlockId, userTags, saveLessonProgress]);
 
   const lessonNavControls = (
     <div className="flex items-center gap-2">
@@ -273,7 +420,16 @@ const LessonPage = () => {
     <div className="min-h-screen bg-black text-white overflow-hidden relative">
       <div className="absolute inset-0 z-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_left,_rgba(236,72,153,0.15),_transparent_50%),radial-gradient(ellipse_at_bottom_right,_rgba(0,139,139,0.1),_transparent_60%)]"></div>
       
-      <Navbar rightControls={!isLoading && !error ? lessonNavControls : null} />
+      <Navbar 
+        rightControls={
+          !isLoading && !error ? (
+            <div className="flex items-center gap-2">
+              {lessonId && <LessonProgressIndicator lessonId={lessonId} />} {/* Render here */}
+              {lessonNavControls}
+            </div>
+          ) : null
+        }
+      />
       
       <DebugPanel 
         isOpen={isDebuggerOpen}

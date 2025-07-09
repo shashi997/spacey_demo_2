@@ -4,71 +4,42 @@ import LessonImage from './LessonImage';
 import Lesson3DModel from './Lesson3DModel';
 import useAudio from '../../hooks/useAudio';
 
-const MediaDisplay = ({ media }) => {
-  const [currentMedia, setCurrentMedia] = useState(null);
+const MediaDisplay = ({ media, initialIndex = 0, onMediaChange }) => { // Added initialIndex and onMediaChange
+  const [currentMediaIndex, setCurrentMediaIndex] = useState(initialIndex);
   const videoRef = useRef(null);
 
   useEffect(() => {
-    if (media) {
-      if (media['3d_model']) {
-        setCurrentMedia({ type: '3d', src: media['3d_model'] });
-      } else if (media.image) {
-        setCurrentMedia({ type: 'image', src: media.image });
-      } else if (media.video) { // Prioritize video over audio
-        setCurrentMedia({ type: 'video', src: media.video });
-      } else if (media.audio) {
-        setCurrentMedia({ type: 'audio', src: media.audio });
-      } else {
-        setCurrentMedia(null);
-      }
-    }
-  }, [media]);
+    setCurrentMediaIndex(initialIndex); // Reset index when initialIndex changes
+  }, [initialIndex]);
+
+  const getMediaArray = () => {
+    if (!media) return [];
+    const mediaArray = [];
+    if (media['3d_model']) mediaArray.push({ type: '3d', src: media['3d_model'] });
+    if (media.image) mediaArray.push({ type: 'image', src: media.image });
+    if (media.video) mediaArray.push({ type: 'video', src: media.video });
+    if (media.audio) mediaArray.push({ type: 'audio', src: media.audio });
+    return mediaArray;
+  };
+
+  const mediaArray = getMediaArray();
+  const currentMedia = mediaArray[currentMediaIndex];
 
   useAudio(currentMedia?.type === 'audio' ? currentMedia.src : null);
 
+
   const nextMedia = () => {
-    if (!media) return;
-
-    let nextType;
-    switch (currentMedia?.type) {
-      case '3d':
-        nextType = media.image ? 'image' : (media.video ? 'video' : null);
-        break;
-      case 'image':
-        nextType = media.video ? 'video' : null;
-        break;
-      case 'video':
-        nextType = null; // Loop back to the beginning or handle no more media after video
-        break;
-      default: // Covers 'audio' and null cases
-        nextType = media['3d_model'] ? '3d' : (media.image ? 'image' : (media.video ? 'video' : null));
-        break;
-    }
-
-
-    if (nextType) {
-      setCurrentMedia({ type: nextType, src: media[nextType === '3d' ? '3d_model' : nextType] });
-    } else {
-      // Loop back to the beginning, prioritizing 3D, Image, Video (no audio)
-      if (media['3d_model']) {
-        setCurrentMedia({ type: '3d', src: media['3d_model'] });
-      } else if (media.image) {
-        setCurrentMedia({ type: 'image', src: media.image });
-      } else if (media.video) {
-        setCurrentMedia({ type: 'video', src: media.video });
-      } else {
-        setCurrentMedia(null); // No visual media available
-      }
-    }
-
-    if (currentMedia?.type === 'video' && videoRef.current) {
-      videoRef.current.pause();
+    if (mediaArray.length <= 1) return; // No next media if only one or zero
+    const nextIndex = (currentMediaIndex + 1) % (mediaArray.length - (media.audio ? 1 : 0));  // Loop excluding audio
+    setCurrentMediaIndex(nextIndex);
+    onMediaChange(nextIndex);
+    if (mediaArray[nextIndex].type === 'video' && videoRef.current) {
+      videoRef.current.pause(); // Pause previous video
     }
   };
 
   const renderMedia = () => {
-    if (!currentMedia || currentMedia.type === 'audio') return null; // Don't render anything for audio
-
+    if (!currentMedia || currentMedia.type === 'audio') return null;
     switch (currentMedia.type) {
       case '3d':
         return <Lesson3DModel modelPath={currentMedia.src} />;
@@ -88,12 +59,7 @@ const MediaDisplay = ({ media }) => {
     }
   };
 
-  // Determine if the "Next Media" button should be shown (check for at least two visual media types)
-  const hasMultipleVisualMedia = (
-    (media['3d_model'] && (media.image || media.video)) ||
-    (media.image && media.video) ||
-    (media.video && media['3d_model'])
-  );
+  const hasMultipleVisualMedia = mediaArray.filter(m => m.type !== "audio").length > 1;
 
   return (
     <div className="mb-8 animate-fade-in">

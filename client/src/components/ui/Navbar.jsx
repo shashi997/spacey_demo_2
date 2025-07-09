@@ -102,10 +102,10 @@ const Navbar = ({ extraControls, rightControls }) => {
               )}
 
               {/* Fixed dropdown with better hover behavior */}
-              <div className="absolute right-0 top-full mt-1 w-56 bg-gray-900/95 backdrop-blur-md border border-gray-700 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-200 invisible group-hover:visible transform translate-y-2 group-hover:translate-y-0 pointer-events-none group-hover:pointer-events-auto">
+              <div className="absolute left-0 top-full mt-1 w-56 bg-gray-900/95 backdrop-blur-md border border-gray-700 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-200 invisible group-hover:visible transform translate-y-2 group-hover:translate-y-0 pointer-events-none group-hover:pointer-events-auto">
                 {/* Arrow pointer */}
-                <div className="absolute -top-1 right-4 w-2 h-2 bg-gray-900 border-l border-t border-gray-700 transform rotate-45"></div>
-                
+                <div className="absolute -top-1 left-4 w-2 h-2 bg-gray-900 border-l border-t border-gray-700 transform rotate-45"></div>
+
                 <div className="px-4 py-3 border-b border-gray-700">
                   <p className="text-sm text-gray-400">Signed in as</p>
                   <p className="text-sm font-medium text-white truncate">{currentUser.email}</p>

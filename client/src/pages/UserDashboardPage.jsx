@@ -5,6 +5,7 @@ import Navbar from '../components/ui/Navbar';
 import { useAuthContext } from '../components/layout/AuthLayout';
 import { db } from '../firebaseConfig';
 import { collection, query, where, getDocs, documentId } from 'firebase/firestore';
+import PlayerProfile from '../components/dashboard/PlayerProfile';
 
 const UserDashboardPage = () => {
   const { currentUser, userData } = useAuthContext();
@@ -62,6 +63,12 @@ const UserDashboardPage = () => {
           </h1>
           <p className="text-lg text-gray-300">This is your personal Spacey profile dashboard.</p>
 
+          {/* Player Profile Card */}
+          <div className="flex justify-center my-8">
+            <PlayerProfile userId={currentUser.uid} />
+          </div>
+
+          {/* Optionally, keep other info below */}
           <div className="space-y-4 text-left">
             <p className="text-md"><strong>Email:</strong> {currentUser.email}</p>
             {userData && (
@@ -73,45 +80,6 @@ const UserDashboardPage = () => {
               </>
             )}
           </div>
-
-          {/* Display User Traits */}
-          {userTraits.length > 0 && (
-            <div className="mt-6">
-              <h2 className="text-2xl font-semibold text-gray-200 mb-4">Your Traits</h2>
-              <div className="flex flex-wrap gap-2 justify-center">
-                {userTraits.map((trait) => (
-                  <span key={trait} className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-sm font-mono">
-                    {trait}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Display lesson progress */}
-          {lessonProgress.length > 0 && (
-            <div className="mt-6">
-              <h2 className="text-2xl font-semibold text-gray-200 mb-4">Your Lesson Progress</h2>
-              <ul className="list-none space-y-2">
-                {lessonProgress.map((progress) => (
-                  <li key={progress.id} className="bg-black/20 rounded-md p-4 flex justify-between items-center">
-                    <div>
-                      {/* Extract lessonId from the document ID */}
-                      <span className="font-medium">Lesson: {progress.id.split('_')[1]}</span>
-                      <p className="text-sm text-gray-300">
-                        {progress.completed
-                          ? "Completed"
-                          : `Current Block: ${progress.currentBlockId}`}
-                      </p>
-                    </div>
-                    {progress.completed && (
-                      <span className="text-green-400 font-mono text-xs">Completed</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
 
           <p className="text-gray-400 mt-4">More profile details and settings will be available here soon!</p>
         </div>

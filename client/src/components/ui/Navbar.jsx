@@ -53,12 +53,22 @@ const Navbar = ({ extraControls, rightControls }) => {
       <div className={`w-full flex justify-between items-center py-3 px-4 md:px-8 lg:px-12 ${navBackgroundStyle}`}>
         {/* --- Left Side --- */}
         <div className="flex items-center gap-4">
-          <button 
-            onClick={() => navigate('/')} 
-            className="text-2xl font-bold text-white tracking-wider hover:text-gray-300 transition-colors"
+          {/* Spacey link */}
+          <Link 
+            to="/" 
+            className={`text-2xl font-bold tracking-wider transition-colors px-1 ${location.pathname === '/' ? 'text-cyan-300' : 'text-white hover:text-gray-300'}`}
           >
             Spacey
-          </button>
+          </Link>
+          {/* Dashboard link */}
+          {currentUser && (
+            <Link 
+              to="/dashboard" 
+              className={`text-lg font-semibold tracking-wide transition-colors px-1 ${location.pathname.startsWith('/dashboard') ? 'text-cyan-300' : 'text-white hover:text-gray-300'}`}
+            >
+              Dashboard
+            </Link>
+          )}
           {extraControls}
         </div>
 

@@ -1,5 +1,5 @@
 const express = require('express');
-const { chatWithAI, getUserTraits, getContextSummary } = require('../controllers/spaceyController');
+const { chatWithAI, getUserTraits, getContextSummary, saveChoice, getUserTraitCounts, getMissionHistory, saveFinalSummary, canUnlock } = require('../controllers/spaceyController');
 const { handleLessonInteraction } = require('../controllers/lessonController');
 
 const router = express.Router();
@@ -33,5 +33,20 @@ router.get('/context/:userId', getContextSummary);
 
 // POST route for lesson interactions
 router.post('/interact', handleLessonInteraction);
+
+// POST route for saving a player choice
+router.post('/profile/saveChoice', saveChoice);
+
+// GET route for user trait counts (bar chart data)
+router.get('/profile/traits/:userId', getUserTraitCounts);
+
+// GET route for mission history
+router.get('/profile/missions/:userId', getMissionHistory);
+
+// POST route for saving final summary
+router.post('/profile/saveFinalSummary', saveFinalSummary);
+
+// GET route for unlock logic
+router.get('/profile/canUnlock', canUnlock);
 
 module.exports = router;

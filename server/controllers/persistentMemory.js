@@ -116,7 +116,11 @@ class PersistentMemoryManager {
       sessions: {
         currentSessionId: null,
         recentSessions: [] // last 10 session summaries
-      }
+      },
+
+      // --- NEW: Missions and Traits ---
+      missions_completed: [], // Array of { mission_id, completed_at, choices, final_summary }
+      traits: {}, // { cautious: 2, bold: 1, creative: 0, ... }
     };
   }
 
@@ -558,6 +562,66 @@ class PersistentMemoryManager {
       console.error('Error getting learning style:', error);
       return 'unknown';
     });
+  }
+
+  // === PLAYER PROGRESS & TRAITS API ===
+  async saveChoice(userId, missionId, blockId, choiceText, tag) {
+    const profile = await this.getUserProfile(userId);
+    // Find or create mission entry
+    let mission = profile.missions_completed.find(m => m.mission_id === missionId);
+    if (!mission) {
+      mission = {
+        mission_id: missionId,
+        completed_at: null,
+        choices: [],
+        final_summary: ''
+      };
+      profile.missions_completed.push(mission);
+    }
+    // Add choice
+    mission.choices.push({ block_id: blockId, choice: choiceText, tag });
+    // Update trait count
+    if (tag) {
+      if (!profile.traits[tag]) profile.traits[tag] = 0;
+      profile.traits[tag] += 1;
+    }
+    await this.saveUserProfile(userId, profile);
+    return mission;
+  }
+
+  async getUserTraits(userId) {
+    const profile = await this.getUserProfile(userId);
+    return profile.traits || {};
+  }
+
+  async getMissionHistory(userId) {
+    const profile = await this.getUserProfile(userId);
+    return profile.missions_completed || [];
+  }
+
+  async saveFinalSummary(userId, missionId, summary) {
+    const profile = await this.getUserProfile(userId);
+    let mission = profile.missions_completed.find(m => m.mission_id === missionId);
+    if (!mission) {
+      mission = {
+        mission_id: missionId,
+        completed_at: new Date().toISOString(),
+        choices: [],
+        final_summary: summary
+      };
+      profile.missions_completed.push(mission);
+    } else {
+      mission.final_summary = summary;
+      mission.completed_at = new Date().toISOString();
+    }
+    await this.saveUserProfile(userId, profile);
+    return mission;
+  }
+
+  async canUnlock(userId, missionId, requiredMissionId) {
+    // Returns true if requiredMissionId is completed
+    const profile = await this.getUserProfile(userId);
+    return profile.missions_completed.some(m => m.mission_id === requiredMissionId && m.completed_at);
   }
 }
 

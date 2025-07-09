@@ -547,8 +547,84 @@ const getContextSummary = async (req, res) => {
     }
 };
 
+// === PLAYER PROFILE & PROGRESS API ===
+
+// Save a player choice
+const saveChoice = async (req, res) => {
+  try {
+    const { userId, missionId, blockId, choiceText, tag } = req.body;
+    if (!userId || !missionId || !blockId || !choiceText) {
+      return res.status(400).json({ error: 'Missing required fields.' });
+    }
+    const mission = await persistentMemory.saveChoice(userId, missionId, blockId, choiceText, tag);
+    res.json({ success: true, mission });
+  } catch (error) {
+    console.error('❌ Error saving choice:', error);
+    res.status(500).json({ error: 'Failed to save choice.' });
+  }
+};
+
+// Get user trait counts
+const getUserTraitCounts = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const traits = await persistentMemory.getUserTraits(userId);
+    res.json({ traits });
+  } catch (error) {
+    console.error('❌ Error fetching user trait counts:', error);
+    res.status(500).json({ error: 'Failed to fetch user trait counts.' });
+  }
+};
+
+// Get mission history
+const getMissionHistory = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const missions = await persistentMemory.getMissionHistory(userId);
+    res.json({ missions });
+  } catch (error) {
+    console.error('❌ Error fetching mission history:', error);
+    res.status(500).json({ error: 'Failed to fetch mission history.' });
+  }
+};
+
+// Save final summary for a mission
+const saveFinalSummary = async (req, res) => {
+  try {
+    const { userId, missionId, summary } = req.body;
+    if (!userId || !missionId || !summary) {
+      return res.status(400).json({ error: 'Missing required fields.' });
+    }
+    const mission = await persistentMemory.saveFinalSummary(userId, missionId, summary);
+    res.json({ success: true, mission });
+  } catch (error) {
+    console.error('❌ Error saving final summary:', error);
+    res.status(500).json({ error: 'Failed to save final summary.' });
+  }
+};
+
+// Check if a mission can be unlocked
+const canUnlock = async (req, res) => {
+  try {
+    const { userId, missionId, requiredMissionId } = req.query;
+    if (!userId || !missionId || !requiredMissionId) {
+      return res.status(400).json({ error: 'Missing required query params.' });
+    }
+    const unlocked = await persistentMemory.canUnlock(userId, missionId, requiredMissionId);
+    res.json({ canUnlock: unlocked });
+  } catch (error) {
+    console.error('❌ Error checking unlock:', error);
+    res.status(500).json({ error: 'Failed to check unlock.' });
+  }
+};
+
 module.exports = {
     chatWithAI,
     getUserTraits,
-    getContextSummary
+    getContextSummary,
+    saveChoice,
+    getUserTraitCounts,
+    getMissionHistory,
+    saveFinalSummary,
+    canUnlock,
 };

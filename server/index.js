@@ -4,7 +4,6 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const chatRoutes = require('./routes/chatRoutes');
-const playerProfileRoutes = require('./routes/playerProfileRoutes');
 
 
 const app = express();
@@ -25,7 +24,6 @@ app.get('/', (req, res) => {
 
 // Routes
 app.use('/api/chat', chatRoutes);
-app.use('/api/profile', playerProfileRoutes);
 
 // Global error handler
 app.use((error, req, res, next) => {

@@ -1,4 +1,3 @@
-// DEPRECATED: This migration utility is no longer needed as persistentMemory is not used for user profile, mission, or trait storage.
 const { conversationMemory } = require('../controllers/conversationMemory');
 const { persistentMemory } = require('../controllers/persistentMemory');
 

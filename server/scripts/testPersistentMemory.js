@@ -1,5 +1,3 @@
-// DEPRECATED: This test script is no longer needed as persistentMemory is not used for user profile, mission, or trait storage.
-
 #!/usr/bin/env node
 
 const { persistentMemory } = require('../controllers/persistentMemory');

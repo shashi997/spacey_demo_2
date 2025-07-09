@@ -1,10 +1,12 @@
 const { aiProviderManager } = require('./aiProviders');
 const { conversationMemory } = require('./conversationMemory');
+const { persistentMemory } = require('./persistentMemory');
 const { traitAnalyzer } = require('./traitAnalyzer');
 
 console.log('🔧 SpaceyController loaded');
 console.log('🤖 Available AI providers:', Object.keys(aiProviderManager.getAvailableProviders()));
 console.log('🧠 Memory system loaded:', !!conversationMemory);
+console.log('💾 Persistent memory loaded:', !!persistentMemory);
 console.log('🎯 Trait analyzer loaded:', !!traitAnalyzer);
 
 const buildSystemPrompt = (userPrompt, userInfo = {}, conversationContext = {}) => {
@@ -266,8 +268,8 @@ const handleAvatarResponse = async (req, res, userId, user, visualContext, trigg
         console.log('🤖 Generating avatar response for trigger:', trigger);
         
         // Get conversation context
-        const conversationSummary = await conversationMemory.summarizeContext(userId);
-        const enhancedContext = await conversationMemory.generateEnhancedContext(userId);
+        const conversationSummary = await persistentMemory.summarizeContext(userId);
+        const enhancedContext = await persistentMemory.generateEnhancedContext(userId);
         
         const conversationContext = {
             conversationSummary,
@@ -282,7 +284,7 @@ const handleAvatarResponse = async (req, res, userId, user, visualContext, trigg
         console.log('✅ Avatar response generated:', response.substring(0, 100) + '...');
 
         // Store interaction with avatar context
-        await conversationMemory.addInteraction(userId, `[AVATAR_${trigger.toUpperCase()}]`, response, {
+        await persistentMemory.addInteraction(userId, `[AVATAR_${trigger.toUpperCase()}]`, response, {
             type: 'avatar_response',
             trigger,
             visualContext,
@@ -325,7 +327,7 @@ const handleEnhancedChat = async (req, res, userId, user, prompt, visualContext)
         console.log('🚀 Processing enhanced chat with visual context');
         
         // Get conversation context
-        let emotionalState = await conversationMemory.detectEmotionalState(userId, prompt);
+        let emotionalState = await persistentMemory.detectEmotionalState(userId, prompt);
         
         // Merge visual emotion data if available
         if (visualContext?.emotionalState?.visual) {
@@ -339,9 +341,9 @@ const handleEnhancedChat = async (req, res, userId, user, prompt, visualContext)
             };
         }
 
-        const conversationSummary = await conversationMemory.summarizeContext(userId);
-        const learningStyle = await conversationMemory.getUserLearningStyle(userId);
-        const enhancedContext = await conversationMemory.generateEnhancedContext(userId);
+        const conversationSummary = await persistentMemory.summarizeContext(userId);
+        const learningStyle = await persistentMemory.getUserLearningStyle(userId);
+        const enhancedContext = await persistentMemory.generateEnhancedContext(userId);
         
         const conversationContext = {
             emotionalState,
@@ -374,7 +376,7 @@ const handleEnhancedChat = async (req, res, userId, user, prompt, visualContext)
         console.log('✅ Enhanced chat response generated:', response.substring(0, 100) + '...');
 
         // Store interaction with visual context
-        await conversationMemory.addInteraction(userId, prompt, response, {
+        await persistentMemory.addInteraction(userId, prompt, response, {
             emotionalState,
             learningStyle,
             visualContext,
@@ -417,10 +419,10 @@ const handleStandardChat = async (req, res, userId, user, prompt) => {
     console.log('👤 User info:', user);
 
     // Get enhanced conversation context and emotional analysis
-    const emotionalState = await conversationMemory.detectEmotionalState(userId, prompt);
-    const conversationSummary = await conversationMemory.summarizeContext(userId);
-    const learningStyle = await conversationMemory.getUserLearningStyle(userId);
-    const enhancedContext = await conversationMemory.generateEnhancedContext(userId);
+    const emotionalState = await persistentMemory.detectEmotionalState(userId, prompt);
+    const conversationSummary = await persistentMemory.summarizeContext(userId);
+    const learningStyle = await persistentMemory.getUserLearningStyle(userId);
+    const enhancedContext = await persistentMemory.generateEnhancedContext(userId);
     
     // Build comprehensive conversation context
     const conversationContext = {
@@ -456,7 +458,7 @@ const handleStandardChat = async (req, res, userId, user, prompt) => {
         console.log('✅ Real LLM response generated:', response.substring(0, 100) + '...');
         
         // Store the interaction in persistent memory
-        await conversationMemory.addInteraction(userId, prompt, response, {
+        await persistentMemory.addInteraction(userId, prompt, response, {
             emotionalState,
             learningStyle,
             timestamp: new Date().toISOString(),
@@ -522,10 +524,10 @@ const getContextSummary = async (req, res) => {
         const { limit = 5 } = req.query;
         console.log('💭 Fetching context for user:', userId);
 
-        const summary = await conversationMemory.summarizeContext(userId);
-        const recent = await conversationMemory.getRecentInteractions(userId, parseInt(limit));
-        const emotionalState = await conversationMemory.detectEmotionalState(userId, '');
-        const learningStyle = await conversationMemory.getUserLearningStyle(userId);
+        const summary = await persistentMemory.summarizeContext(userId);
+        const recent = await persistentMemory.getRecentInteractions(userId, parseInt(limit));
+        const emotionalState = await persistentMemory.detectEmotionalState(userId, '');
+        const learningStyle = await persistentMemory.getUserLearningStyle(userId);
 
         res.json({
             summary,
@@ -545,8 +547,84 @@ const getContextSummary = async (req, res) => {
     }
 };
 
+// === PLAYER PROFILE & PROGRESS API ===
+
+// Save a player choice
+const saveChoice = async (req, res) => {
+  try {
+    const { userId, missionId, blockId, choiceText, tag } = req.body;
+    if (!userId || !missionId || !blockId || !choiceText) {
+      return res.status(400).json({ error: 'Missing required fields.' });
+    }
+    const mission = await persistentMemory.saveChoice(userId, missionId, blockId, choiceText, tag);
+    res.json({ success: true, mission });
+  } catch (error) {
+    console.error('❌ Error saving choice:', error);
+    res.status(500).json({ error: 'Failed to save choice.' });
+  }
+};
+
+// Get user trait counts
+const getUserTraitCounts = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const traits = await persistentMemory.getUserTraits(userId);
+    res.json({ traits });
+  } catch (error) {
+    console.error('❌ Error fetching user trait counts:', error);
+    res.status(500).json({ error: 'Failed to fetch user trait counts.' });
+  }
+};
+
+// Get mission history
+const getMissionHistory = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const missions = await persistentMemory.getMissionHistory(userId);
+    res.json({ missions });
+  } catch (error) {
+    console.error('❌ Error fetching mission history:', error);
+    res.status(500).json({ error: 'Failed to fetch mission history.' });
+  }
+};
+
+// Save final summary for a mission
+const saveFinalSummary = async (req, res) => {
+  try {
+    const { userId, missionId, summary } = req.body;
+    if (!userId || !missionId || !summary) {
+      return res.status(400).json({ error: 'Missing required fields.' });
+    }
+    const mission = await persistentMemory.saveFinalSummary(userId, missionId, summary);
+    res.json({ success: true, mission });
+  } catch (error) {
+    console.error('❌ Error saving final summary:', error);
+    res.status(500).json({ error: 'Failed to save final summary.' });
+  }
+};
+
+// Check if a mission can be unlocked
+const canUnlock = async (req, res) => {
+  try {
+    const { userId, missionId, requiredMissionId } = req.query;
+    if (!userId || !missionId || !requiredMissionId) {
+      return res.status(400).json({ error: 'Missing required query params.' });
+    }
+    const unlocked = await persistentMemory.canUnlock(userId, missionId, requiredMissionId);
+    res.json({ canUnlock: unlocked });
+  } catch (error) {
+    console.error('❌ Error checking unlock:', error);
+    res.status(500).json({ error: 'Failed to check unlock.' });
+  }
+};
+
 module.exports = {
     chatWithAI,
     getUserTraits,
     getContextSummary,
+    saveChoice,
+    getUserTraitCounts,
+    getMissionHistory,
+    saveFinalSummary,
+    canUnlock,
 };

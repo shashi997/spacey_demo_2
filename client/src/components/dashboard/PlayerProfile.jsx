@@ -35,11 +35,11 @@ const PlayerProfile = ({ userId }) => {
     const fetchData = async () => {
       try {
         const [traitsRes, missionsRes] = await Promise.all([
-          axios.get(`/api/profile/traits/${userId}`),
-          axios.get(`/api/profile/missions/${userId}`),
+          axios.get(`/api/chat/profile/traits/${userId}`),
+          axios.get(`/api/chat/profile/missions/${userId}`),
         ]);
-        setTraits(traitsRes.data || {});
-        setMissions(missionsRes.data || []);
+        setTraits(traitsRes.data.traits || {});
+        setMissions(missionsRes.data.missions || []);
       } catch (err) {
         setTraits({});
         setMissions([]);

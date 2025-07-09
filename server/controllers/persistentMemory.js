@@ -1,4 +1,3 @@
-// DEPRECATED: This file is no longer used for user profile, mission, or trait storage. All such data is now managed via Firestore in playerProfileController.js.
 const fs = require('fs').promises;
 const path = require('path');
 

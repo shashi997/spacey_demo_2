@@ -212,7 +212,7 @@ export default function AI_Avatar({
       }
 
       // Schedule next idle response (30-60 seconds)
-      const delay = 30000 + Math.random() * 30000;
+      const delay = 5 * 60 * 1000; // 5 minutes for idle response
       idleResponseTimeout.current = setTimeout(() => {
         generateContextualResponse('idle');
         scheduleIdleResponse(); // Schedule the next one

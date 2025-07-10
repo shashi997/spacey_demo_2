@@ -2,7 +2,6 @@
 
 import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { Video, VideoOff, LoaderCircle, Eye, AlertCircle, Cpu, Zap } from 'lucide-react';
-import EmotionAnalysisOverlay from './EmotionAnalysisOverlay';
 import useEmotionDetection from '../../hooks/useEmotionDetection';
 
 const WebcamFeed = forwardRef(({ onEmotionDetected, enableEmotionDetection = true }, ref) => {
@@ -195,17 +194,66 @@ const WebcamFeed = forwardRef(({ onEmotionDetected, enableEmotionDetection = tru
 
         {/* Enhanced Emotion Overlay */}
         {showEmotionOverlay && enableEmotionDetection && (
-          <EmotionAnalysisOverlay
-            faceDetected={faceDetected}
-            modelsAvailable={modelsAvailable}
-            statusText={getStatusText()}
-            dominantEmotion={dominantEmotion}
-            confidence={confidence}
-            emotionalState={getEmotionalState().emotion}
-            visualDescription={getVisualDescription()}
-            rawData={rawData}
-            videoReady={videoReady}
-          />
+          <div className="absolute bottom-3 left-3 right-3 bg-black/80 backdrop-blur-sm rounded-lg p-3 text-xs">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-cyan-400 font-mono">EMOTION ANALYSIS</span>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs ${faceDetected ? 'text-green-400' : 'text-red-400'}`}>
+                  {faceDetected ? 'FACE DETECTED' : 'NO FACE'}
+                </span>
+                {modelsAvailable ? (
+                  <span className="text-blue-400 text-xs">ML</span>
+                ) : (
+                  <span className="text-orange-400 text-xs">SIM</span>
+                )}
+              </div>
+            </div>
+            
+            {/* Status Information */}
+            <div className="mb-2 text-gray-300 text-xs">
+              Status: <span className="text-yellow-400">{getStatusText()}</span>
+            </div>
+            
+            {faceDetected && (
+              <div className="space-y-1">
+                <div className="grid grid-cols-2 gap-1 text-white">
+                  <div>Emotion: <span className="text-yellow-400">{dominantEmotion}</span></div>
+                  <div>Confidence: <span className="text-yellow-400">{Math.round(confidence * 100)}%</span></div>
+                </div>
+                <div className="text-gray-300 text-xs">
+                  State: <span className="text-cyan-400">{getEmotionalState().emotion}</span>
+                </div>
+                <div className="text-gray-300 text-xs">
+                  Description: <span className="text-green-400">{getVisualDescription()}</span>
+                </div>
+                
+                {/* Emotion bars for top emotions */}
+                <div className="mt-2 space-y-1">
+                  {Object.entries(rawData.emotions)
+                    .sort(([,a], [,b]) => b - a)
+                    .slice(0, 3)
+                    .map(([emotion, value]) => (
+                      <div key={emotion} className="flex items-center gap-2">
+                        <span className="text-xs w-12 text-gray-400 capitalize">{emotion}</span>
+                        <div className="flex-1 bg-gray-700 rounded-full h-1">
+                          <div 
+                            className="bg-cyan-400 h-1 rounded-full transition-all duration-300"
+                            style={{ width: `${value * 100}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-gray-400 w-8">{Math.round(value * 100)}%</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+            
+            {!videoReady && (
+              <div className="text-yellow-400 text-xs">
+                Waiting for video stream to stabilize...
+              </div>
+            )}
+          </div>
         )}
       </>
     );

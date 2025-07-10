@@ -1,4 +1,5 @@
 const { traitAnalyzer } = require('./traitAnalyzer');
+const {generateConversationalResponse} = require('./conversationalGenerator');
 
 /**
  * Handles and analyzes a user's interaction within a lesson.
@@ -6,7 +7,7 @@ const { traitAnalyzer } = require('./traitAnalyzer');
 const handleLessonInteraction = async (req, res) => {
   try {
     // 1. Destructure the payload from the frontend
-    const { userResponse, userTags, currentBlock } = req.body;
+    const { userResponse, userTags, currentBlock, lessonData } = req.body;
 
     // Basic validation
     if (!userResponse || !userTags || !currentBlock) {
@@ -21,18 +22,28 @@ const handleLessonInteraction = async (req, res) => {
 
     console.log(`Analyzing interaction: "${messageToAnalyze}" with tags: [${userTags.join(', ')}]`);
 
-    // 3. Call the trait analyzer with the message and current context
+    // 3. FIRST LLM CALL: Call the trait analyzer for structured data
     const analysis = await traitAnalyzer.analyzeTraits(
       messageToAnalyze,
       `Lesson Choice in block: ${currentBlock.block_id}`,
       userTags
     );
 
+    const conversationalContext = {
+      lessonData,
+      currentBlock,
+      userResponse,
+      userTags,
+      analysis, // Pass the results of the first analysis as context
+    };
+
+    const conversationalMessage = await generateConversationalResponse(conversationalContext);
+
     // 4. Format a clear response for the frontend
     // The frontend's `ReflectionBlock` is expecting a field named `ai_message`.
     // The `reasoning` from our analysis is the perfect content for it.
     const responsePayload = {
-      ai_message: analysis.reasoning || "Your action has been noted and is being processed.",
+      ai_message: conversationalMessage || "Your action has been noted and is being processed.",
       added_traits: analysis.traits_to_add,
       removed_traits: analysis.traits_to_remove,
       analysis_method: analysis.method,

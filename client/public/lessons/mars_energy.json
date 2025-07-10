@@ -12,22 +12,8 @@
                 "audio": "/audio/emergency_klaxon.mp3",
                 "3d_model": "/models/jumping_space-suit1.glb"
             },
-            "ai_check": {
-                "type": "initial_understanding_check",
-                "prompt_template_id": "opening_scene_prompt",
-                "question_to_user": "Summarize the two most critical pieces of information you have right now.",
-                "retry_limit": 2,
-                "on_failure_next_block": "Remedial Opening Scene"
-            },
-            "next_block": "Initial Scan"
-        },
-        {
-            "block_id": "Remedial Opening Scene",
-            "type": "narration",
-            "content": "Let's refocus. The two key facts are: the main energy core is offline, and the clock is ticking. Every decision matters. Let's proceed.",
-            "media": {
-                "audio": "/audio/ai_guidance_chime.mp3"
-            },
+            "learning_goal": "Introduce the crisis scenario and establish the player's role.",
+            "llm_instruction": "Narrate the opening scene of the Mars Base Ares-X crisis. Set a serious, urgent tone. Directly address the student as 'Commander'. Then, introduce the immediate problem: the main energy core shutdown. Ensure the narrative flows into the next block's prompt.",
             "next_block": "Initial Scan"
         },
         {
@@ -51,12 +37,7 @@
                     "ai_reaction": "Player chose to investigate internal systems first."
                 }
             ],
-            "ai_check": {
-                "type": "decision_rationale_check",
-                "prompt_template_id": "initial_scan_rationale_prompt",
-                "question_to_user": "Briefly, why did you make that choice?",
-                "retry_limit": 1
-            }
+            "learning_goal": "Assess initial system status and identify immediate threats (power, temperature)."
         },
         {
             "block_id": "Solar Flare Detected",
@@ -78,7 +59,8 @@
                     "tag": "passive",
                     "ai_reaction": "Player chose to observe before acting."
                 }
-            ]
+            ],
+            "learning_goal": "Understand external threats (solar flares) and their impact on power/communication."
         },
         {
             "block_id": "Circuit Burn",
@@ -100,7 +82,8 @@
                     "tag": "safe",
                     "ai_reaction": "Player chose a direct, less risky approach."
                 }
-            ]
+            ],
+            "learning_goal": "Understand internal system failures and the trade-offs in resource allocation during a crisis."
         },
         {
             "block_id": "AI Decision Conflict",
@@ -119,7 +102,8 @@
                 "tag": "collaborative",
                 "ai_reaction": "Player chose to trust the AI's judgment."
               }
-            ]
+            ],
+            "learning_goal": "Explore human-AI collaboration and conflict in high-stakes decision-making under uncertainty."
         },
         {
             "block_id": "Complication",
@@ -141,7 +125,8 @@
                 "tag": "collaborative",
                 "ai_reaction": "Player sought human assistance."
               }
-            ]
+            ],
+            "learning_goal": "Recognize unforeseen consequences of decisions and prioritize critical life support systems in an escalating crisis."
         },
         {
           "block_id": "AI Reaction",
@@ -150,11 +135,13 @@
           "dynamic_content": [
             {
               "condition_tags": ["bold", "assertive", "active", "risk"],
-              "text": "You tend to take bold risks under pressure."
+              "text": "You tend to take bold risks under pressure.",
+              "llm_instruction": "Based on the student's decisions, elaborate on how their bold and risk-taking approach has manifested in the mission. Link it to specific choices if possible. Then, transition to the 'Last Major Decision' block."
             },
             {
               "condition_tags": ["cautious", "passive", "safe", "collaborative"],
-              "text": "You rely on systems not intuition."
+              "text": "You rely on systems not intuition.",
+              "llm_instruction": "Based on the student's decisions, elaborate on how their cautious and systems-oriented thinking has been evident. Link it to specific choices if possible. Then, transition to the 'Last Major Decision' block."
             }
           ],
           "next_block": "Last Major Decision"
@@ -185,7 +172,8 @@
               "tag": "external_help",
               "ai_reaction": "Player prioritised seeking outside assistance."
             }
-          ]
+          ],
+          "learning_goal": "Evaluate and prioritize critical base systems (life support, research, communication) based on immediate and long-term mission needs."
         },
         {
             "block_id": "Unexpected Outcome",
@@ -194,21 +182,26 @@
             "dynamic_outcome": [
               {
                 "condition_tags": ["safe"],
-                "text": "The base stabilizes, but external communication remains patchy."
+                "text": "The base stabilizes, but external communication remains patchy.",
+                "llm_instruction": "Narrate the outcome where the base stabilizes but external communication remains patchy. Emphasize the trade-offs of prioritizing safety over other aspects."
               },
               {
                 "condition_tags": ["external_help"],
-                "text": "Earth contact is re-established, but critical research data is lost."
+                "text": "Earth contact is re-established, but critical research data is lost.",
+                "llm_instruction": "Narrate the outcome where Earth contact is re-established but critical research data is lost. Discuss the implications of relying solely on external help."
               },
               {
                 "condition_tags": ["mission_continuity"],
-                "text": "Research labs are powered, but a team member suffers from early oxygen loss due to power fluctuations."
+                "text": "Research labs are powered, but a team member suffers from early oxygen loss due to power fluctuations.",
+                "llm_instruction": "Narrate the outcome where research labs are powered, but a team member suffers from early oxygen loss. Highlight the harsh realities of resource allocation in a crisis."
               },
               {
                 "condition_tags": [],
-                "text": "Despite your efforts, the outcome is a mix of successes and setbacks, reflecting the high stakes of your decisions."
+                "text": "Despite your efforts, the outcome is a mix of successes and setbacks, reflecting the high stakes of your decisions.",
+                "llm_instruction": "Narrate a mixed outcome, reflecting the high stakes and complex consequences of the student's decisions throughout the mission. Emphasize that not every decision leads to a perfect win."
               }
             ],
+            "learning_goal": "Understand the complex and often imperfect consequences of high-stakes decisions.",
             "next_block": "Spacey Final Reflection"
         },
         {
@@ -218,13 +211,16 @@
           "dynamic_content": [
             {
               "condition_tags": ["bold", "active", "risk", "assertive"],
-              "text": "You're the kind of leader who values speed over safety."
+              "text": "You're the kind of leader who values speed over safety.",
+              "llm_instruction": "Based on the student's overall accumulated traits and decisions, elaborate on how their leadership style valued speed and decisive action, even if it meant taking risks. Connect this to the mission's outcome. Frame it as a reflective observation from Spacey."
             },
             {
               "condition_tags": ["cautious", "safe", "collaborative", "passive"],
-              "text": "You think in systems and that saved your crew."
+              "text": "You think in systems and that saved your crew.",
+              "llm_instruction": "Based on the student's overall accumulated traits and decisions, elaborate on how their leadership style emphasized systematic thinking, careful planning, and collaboration, which ultimately helped save the crew. Connect this to the mission's outcome. Frame it as a reflective observation from Spacey."
             }
           ],
+          "learning_goal": "Encourage self-reflection on overall leadership style, decision-making philosophy, and its impact on the mission's final outcome.",
           "next_block": "Learning Quiz"
         },
         {
@@ -240,7 +236,8 @@
                 {"text": "An atmospheric phenomenon unique to Mars that causes static.", "is_correct": false}
               ],
               "correct_feedback": "Correct! Solar flares are dangerous to electronics.",
-              "incorrect_feedback": "Not quite. Solar flares are bursts of radiation from the sun."
+              "incorrect_feedback": "Not quite. Solar flares are bursts of radiation from the sun.",
+              "llm_feedback_instruction": "Given the student's answer for this question, provide personalized feedback. If correct, praise them and briefly reinforce the concept. If incorrect, gently correct them, explain the right answer using the 'explanation' and encourage them to review the topic. Keep it concise and tutor-like."
             },
             {
               "question_text": "Why is energy routing critical in space environments?",
@@ -250,7 +247,8 @@
                 {"text": "To create artificial gravity for comfort.", "is_correct": false}
               ],
               "correct_feedback": "That's right! Proper energy routing is vital for survival.",
-              "incorrect_feedback": "Think about the limited resources and critical systems in space."
+              "incorrect_feedback": "Think about the limited resources and critical systems in space.",
+              "llm_feedback_instruction": "Given the student's answer for this question, provide personalized feedback. If correct, praise them and briefly reinforce the concept. If incorrect, gently correct them, explain the right answer using the 'explanation' and encourage them to review the topic. Keep it concise and tutor-like."
             },
             {
               "question_text": "Which systems must never be de-prioritised in a crisis?",
@@ -260,9 +258,11 @@
                 {"text": "Research drones and geological survey equipment.", "is_correct": false}
               ],
               "correct_feedback": "Absolutely! Life support is always paramount.",
-              "incorrect_feedback": "Consider what is essential for human survival in a harsh environment."
+              "incorrect_feedback": "Consider what is essential for human survival in a harsh environment.",
+              "llm_feedback_instruction": "Given the student's answer for this question, provide personalized feedback. If correct, praise them and briefly reinforce the concept. If incorrect, gently correct them, explain the right answer using the 'explanation' and encourage them to review the topic. Keep it concise and tutor-like."
             }
           ],
+          "learning_goal": "Assess understanding of key concepts like solar flares, energy routing, and system prioritization.",
           "next_block": "Debrief"
         },
         {
@@ -295,6 +295,7 @@
               "text": "Traits shown: Safety-conscious"
             }
           ],
+          "learning_goal": "Reflect on overall mission performance and identified leadership traits.",
           "next_block": "Unlock / Next Mission"
         },
         {

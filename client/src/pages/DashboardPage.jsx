@@ -35,7 +35,6 @@ const DashboardPage = () => {
     
   // Enhanced Avatar States
   const [enablePersonalization, setEnablePersonalization] = useState(true);
-  const [avatarResponses, setAvatarResponses] = useState([]);
   const [emotionData, setEmotionData] = useState(null);
   
   // Refs for component communication
@@ -100,7 +99,6 @@ const DashboardPage = () => {
   // Handle avatar responses
   const handleAvatarResponse = (responseData) => {
     console.log('🤖 Avatar response:', responseData);
-    setAvatarResponses(prev => [...prev.slice(-9), responseData]); // Keep last 10 responses
     
     // Add to debug data
     setChatDebugData(prev => [...prev, {
@@ -288,22 +286,7 @@ const DashboardPage = () => {
         </div>
       </main>
 
-      {/* Avatar Response History (Development Only) */}
-      {import.meta.env.DEV && avatarResponses.length > 0 && (
-        <div className="fixed bottom-28 left-19 z-30 max-w-sm">
-        <div className="bg-black/80 text-white text-sm px-4 py-2 rounded-md shadow-lg backdrop-blur-md max-w-sm">
-            <div className="font-mono text-cyan-400 mb-2">Avatar Responses ({avatarResponses.length})</div>
-            <div className="space-y-1 max-h-32 overflow-y-auto">
-              {avatarResponses.slice(-3).map((response, index) => (
-                <div key={index} className="border-l-2 border-cyan-400/30 pl-2">
-                  <div className="text-yellow-400 text-xs">{response.trigger}</div>
-                  <div className="text-gray-300 text-xs truncate">{response.response}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+
 
       <LessonCatalogueModal
         isOpen={isCatalogueOpen}

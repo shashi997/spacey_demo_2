@@ -18,7 +18,7 @@ function TalkingModel({ isTalking }) {
   useFrame((state) => {
     if (group.current) {
       const t = state.clock.getElapsedTime();
-      group.current.position.y = Math.sin(t * 1.5) * 0.08 - 1.4; // Smoother float
+      group.current.position.y = Math.sin(t * 1.5) * 0.08 - 1.0; // Raised from -1.4 to -1.0 to prevent clipping
     }
   });
 
@@ -42,9 +42,9 @@ function TalkingModel({ isTalking }) {
   return (
     <group
       ref={group}
-      scale={1.35}
+      scale={1.1}
       rotation={[0, Math.PI / 11, 0]}
-      position={[0, -1.4, 0]}
+      position={[0, -0.8, 0]}
     >
       <primitive object={scene} />
     </group>
@@ -215,19 +215,7 @@ export default function AI_Avatar({
     };
   }, [enablePersonalization, canAvatarBeIdle, globalSpeechState.isAnySpeaking, handleIdleCheck, userInfo]);
 
-  // Manual trigger for encouragement
-  const triggerEncouragement = useCallback(() => {
-    handleIdleCheck(userInfo); // Use idle check which can provide encouragement based on context
-  }, [handleIdleCheck, userInfo]);
 
-  // Manual trigger for personalized compliment
-  const giveCompliment = useCallback(() => {
-    if (currentContext.emotionContext?.visualDescription) {
-      handleEmotionAwareResponse(userInfo); // Use emotion-aware response for compliments
-    } else {
-      handleIdleCheck(userInfo); // Fallback to encouragement
-    }
-  }, [handleEmotionAwareResponse, handleIdleCheck, currentContext.emotionContext, userInfo]);
 
   return (
     <div className={`relative ${className}`}>
@@ -287,7 +275,7 @@ export default function AI_Avatar({
       )}
 
       {/* Main 3D Avatar */}
-      <Canvas camera={{ position: [0, 1.6, 3.8], fov: 30 }}>
+      <Canvas camera={{ position: [0, 1.2, 3.2], fov: 35 }}>
         <ambientLight intensity={0.6} />
         <directionalLight position={[2, 4, 2]} intensity={1.2} />
         <TalkingModel isTalking={isTalking || isExternalSpeaking} />
@@ -347,25 +335,7 @@ export default function AI_Avatar({
         </div>
       )}
 
-      {/* Manual Controls */}
-      <div className="absolute top-4 right-4 flex flex-col gap-2">
-        <button
-          onClick={triggerEncouragement}
-          disabled={isProcessing}
-          className="px-3 py-1 bg-cyan-600/80 hover:bg-cyan-600 disabled:bg-gray-600 text-white text-xs rounded-full transition-colors"
-          title="Get encouragement"
-        >
-          💪 Encourage
-        </button>
-        <button
-          onClick={giveCompliment}
-          disabled={isProcessing || !currentContext.emotionContext?.faceDetected}
-          className="px-3 py-1 bg-purple-600/80 hover:bg-purple-600 disabled:bg-gray-600 text-white text-xs rounded-full transition-colors"
-          title="Get a personalized compliment"
-        >
-          ✨ Compliment
-        </button>
-      </div>
+
 
       {/* Debug Panel (only in development) */}
       {import.meta.env.DEV && (

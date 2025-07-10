@@ -7,31 +7,37 @@ import LessonPage from './pages/LessonPage';
 import UserDashboardPage from './pages/UserDashboardPage';
 import NotFoundPage from './pages/NotFoundPage';
 import AuthLayout from './components/layout/AuthLayout';
+import { SpeechCoordinationProvider } from './hooks/useSpeechCoordination.jsx';
+import { ConversationManagerProvider } from './hooks/useConversationManager.jsx';
 
 
 function App() {
   return (
-    <div className='app'>
-      <Routes>
-        {/* --- Public Routes --- */}
-        {/* These routes are accessible to everyone */}
-        <Route path="/" element={<HomePage />} /> 
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/signup" element={<SignupPage />} />
+    <SpeechCoordinationProvider>
+      <ConversationManagerProvider>
+        <div className='app'>
+          <Routes>
+            {/* --- Public Routes --- */}
+            {/* These routes are accessible to everyone */}
+            <Route path="/" element={<HomePage />} /> 
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<SignupPage />} />
 
-        {/* --- Protected Routes --- */}
-        {/* These routes require authentication */}
-        <Route element={<AuthLayout />}>
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/lesson/:lessonId" element={<LessonPage />} />
-          <Route path="/profile" element={<UserDashboardPage />} />
-        </Route>
+            {/* --- Protected Routes --- */}
+            {/* These routes require authentication */}
+            <Route element={<AuthLayout />}>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/lesson/:lessonId" element={<LessonPage />} />
+              <Route path="/profile" element={<UserDashboardPage />} />
+            </Route>
 
-        {/* Add a catch-all route for 404 Not Found pages */}
-        <Route path="*" element={<NotFoundPage />} />
+            {/* Add a catch-all route for 404 Not Found pages */}
+            <Route path="*" element={<NotFoundPage />} />
 
-      </Routes>
-    </div>
+          </Routes>
+        </div>
+      </ConversationManagerProvider>
+    </SpeechCoordinationProvider>
   )
 }
 

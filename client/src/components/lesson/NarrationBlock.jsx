@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Volume2, SkipForward } from 'lucide-react';
-import useSpeechSynthesis from '../../hooks/useSpeechSynthesis';
+import { useCoordinatedSpeechSynthesis, useSpeechCoordination } from '../../hooks/useSpeechCoordination.jsx';
 
 const NarrationBlock = ({ block, userTags, onNavigate, getDynamicText }) => {
-  const { speak, cancel, isSpeaking, isSupported } = useSpeechSynthesis();
+  const { speak, cancel, isSpeaking, isSupported } = useCoordinatedSpeechSynthesis('lesson');
+  const { setContextState, trackActivity } = useSpeechCoordination();
   const [speechComplete, setSpeechComplete] = useState(false);
 
   // Combine all text content into a single string for the speech synthesizer
@@ -16,19 +17,27 @@ const NarrationBlock = ({ block, userTags, onNavigate, getDynamicText }) => {
   useEffect(() => {
     const handleSpeechEnd = () => {
       setSpeechComplete(true);
+      // Clear lesson context when narration ends
+      setContextState('isInLesson', false);
     };
 
     if (isSupported) {
+      // Set lesson context and track activity
+      setContextState('isInLesson', true);
+      trackActivity();
       speak(textToSpeak, { onEnd: handleSpeechEnd });
     }
 
     return () => {
       cancel();
+      setContextState('isInLesson', false);
     };
-  }, [block.block_id, textToSpeak, isSupported, speak, cancel]);
+  }, [block.block_id, textToSpeak, isSupported, speak, cancel, setContextState, trackActivity]);
 
   const handleManualContinue = () => {
     cancel();
+    trackActivity();
+    setContextState('isInLesson', false);
     if (block.next_block) {
       onNavigate(block.next_block);
     }

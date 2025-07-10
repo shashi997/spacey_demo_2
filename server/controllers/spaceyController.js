@@ -245,8 +245,11 @@ const chatWithAI = async (req, res) => {
             case 'enhanced_chat':
                 return await handleEnhancedChat(req, res, userId, user, prompt, visualContext);
             
+            case 'standard_chat':
+                return await handleUnifiedChat(req, res, userId, user, prompt, req.body);
+            
             default:
-                return await handleStandardChat(req, res, userId, user, prompt);
+                return await handleUnifiedChat(req, res, userId, user, prompt, req.body);
         }
 
     } catch (error) {
@@ -402,7 +405,134 @@ const handleEnhancedChat = async (req, res, userId, user, prompt, visualContext)
     }
 };
 
-// Handle standard chat (original functionality)
+// Handle unified chat with enhanced context and personality consistency
+const handleUnifiedChat = async (req, res, userId, user, prompt, requestBody = {}) => {
+    if (!prompt) {
+        console.log('❌ No prompt provided');
+        return res.status(400).json({ 
+            error: "A prompt is required.",
+            debug: {
+                received: requestBody,
+                missing: "prompt field"
+            }
+        });
+    }
+
+    console.log('💭 Unified chat request:', prompt);
+    console.log('👤 User info:', user);
+    console.log('📦 Request context:', {
+        conversationHistory: requestBody.conversationHistory?.length || 0,
+        emotionContext: !!requestBody.emotionContext,
+        userActivity: requestBody.userActivity,
+        currentTopic: requestBody.currentTopic
+    });
+
+    try {
+        // Get enhanced conversation context
+        let emotionalState = await persistentMemory.detectEmotionalState(userId, prompt);
+        
+        // Use provided emotion context if available (from conversation manager)
+        if (requestBody.emotionContext && requestBody.emotionContext.confidence > emotionalState.confidence) {
+            console.log('🎭 Using enhanced emotion context from conversation manager');
+            emotionalState = {
+                emotion: requestBody.emotionContext.emotion,
+                confidence: requestBody.emotionContext.confidence,
+                visual: true,
+                textBased: emotionalState.emotion,
+                visualBased: requestBody.emotionContext.emotion,
+                visualDescription: requestBody.emotionContext.visualDescription
+            };
+        }
+
+        const conversationSummary = await persistentMemory.summarizeContext(userId);
+        const learningStyle = await persistentMemory.getUserLearningStyle(userId);
+        const enhancedContext = await persistentMemory.generateEnhancedContext(userId);
+        
+        // Merge conversation manager context with persistent memory
+        const conversationContext = {
+            emotionalState,
+            conversationSummary,
+            learningStyle,
+            recentTopics: enhancedContext.recentTopics,
+            totalInteractions: enhancedContext.totalInteractions,
+            sessionInteractions: enhancedContext.sessionInteractions,
+            preferredTopics: enhancedContext.preferredTopics || [],
+            strugglingTopics: enhancedContext.strugglingTopics || [],
+            masteredConcepts: enhancedContext.masteredConcepts || [],
+            dominantMood: requestBody.userMood || enhancedContext.dominantMood,
+            averageMessageLength: enhancedContext.averageMessageLength,
+            topInterests: enhancedContext.topInterests || [],
+            // Add conversation manager context
+            userActivity: requestBody.userActivity || 'active',
+            currentTopic: requestBody.currentTopic,
+            timeSinceLastInteraction: requestBody.timeSinceLastInteraction || 0
+        };
+
+        // Enhance prompt with visual context if available
+        let enhancedPrompt = prompt;
+        if (requestBody.emotionContext?.visualDescription) {
+            enhancedPrompt = `${prompt}\n\n[VISUAL CONTEXT: I can see that ${requestBody.emotionContext.visualDescription}. The user appears ${requestBody.emotionContext.emotion} with ${Math.round(requestBody.emotionContext.confidence * 100)}% confidence.]`;
+        }
+
+        console.log('🧠 Unified emotional state:', emotionalState);
+        console.log('📚 Learning style:', learningStyle);
+        console.log('💭 Enhanced conversation context with visual data');
+
+        // Build the enhanced prompt with unified personality
+        const fullPrompt = buildSystemPrompt(enhancedPrompt, user, conversationContext);
+        console.log('📝 Unified prompt built with complete context');
+
+        // Generate response with unified Spacey personality
+        console.log('🤖 Generating unified Spacey response...');
+        const response = await aiProviderManager.generateResponse(fullPrompt);
+        console.log('✅ Unified response generated:', response.substring(0, 100) + '...');
+        
+        // Store the interaction with enhanced context
+        await persistentMemory.addInteraction(userId, prompt, response, {
+            emotionalState,
+            learningStyle,
+            timestamp: new Date().toISOString(),
+            provider: aiProviderManager.defaultProvider,
+            emotionalConfidence: emotionalState.confidence,
+            hasVisualContext: !!requestBody.emotionContext?.visualDescription,
+            conversationManagerContext: {
+                userActivity: requestBody.userActivity,
+                currentTopic: requestBody.currentTopic,
+                userMood: requestBody.userMood
+            },
+            type: 'unified_chat'
+        });
+        
+        console.log('💾 Unified interaction saved to persistent memory');
+        
+        // Send unified response
+        res.json({ 
+            message: response,
+            type: 'unified_chat',
+            debug: {
+                provider: aiProviderManager.defaultProvider,
+                emotionalState,
+                learningStyle,
+                hasVisualContext: !!requestBody.emotionContext?.visualDescription,
+                conversationManagerIntegration: true,
+                timestamp: new Date().toISOString()
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Unified chat error:', error);
+        res.status(500).json({ 
+            error: "Failed to generate unified response",
+            message: "Sorry, my circuits got a bit tangled! Give me a moment to recalibrate my stellar wit.",
+            debug: {
+                error: error.message,
+                timestamp: new Date().toISOString()
+            }
+        });
+    }
+};
+
+// Handle standard chat (original functionality) - DEPRECATED, use handleUnifiedChat
 const handleStandardChat = async (req, res, userId, user, prompt) => {
     if (!prompt) {
         console.log('❌ No prompt provided');

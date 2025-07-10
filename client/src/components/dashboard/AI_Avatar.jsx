@@ -3,9 +3,10 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useGLTF, useAnimations } from '@react-three/drei';
-import { MessageCircle, Brain, Eye, Volume2 } from 'lucide-react';
-import { generateAvatarResponse, fetchUserTraits, getConversationContext } from '../../api/spacey_api';
-import useSpeechSynthesis from '../../hooks/useSpeechSynthesis';
+import { MessageCircle, Brain, Eye, Volume2, VolumeX, Settings } from 'lucide-react';
+import { fetchUserTraits, getConversationContext } from '../../api/spacey_api';
+import { useSpeechCoordination } from '../../hooks/useSpeechCoordination.jsx';
+import { useConversationManager } from '../../hooks/useConversationManager.jsx';
 
 function TalkingModel({ isTalking }) {
   const group = useRef();
@@ -61,21 +62,33 @@ export default function AI_Avatar({
   isExternalSpeaking = false // 👈 NEW PROP
 }) {
   const [isTalking, setIsTalking] = useState(false);
-  const [currentResponse, setCurrentResponse] = useState('');
   const [userTraits, setUserTraits] = useState(['curious']);
   const [conversationContext, setConversationContext] = useState(null);
-  const [visualContext, setVisualContext] = useState(null);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [lastEmotionChange, setLastEmotionChange] = useState(null);
-  const [responseHistory, setResponseHistory] = useState([]);
+  const [showSettings, setShowSettings] = useState(false);
   
   // Refs for managing intervals and state
   const emotionCheckInterval = useRef(null);
-  const idleResponseTimeout = useRef(null);
-  const lastResponseTime = useRef(Date.now());
+  const idleCheckInterval = useRef(null);
 
-  // Speech synthesis for avatar responses
-  const { speak, isSpeaking, cancel: stopSpeaking } = useSpeechSynthesis();
+  // Unified conversation management
+  const { 
+    updateEmotionContext, 
+    handleIdleCheck, 
+    handleEmotionAwareResponse,
+    conversationHistory,
+    currentContext,
+    isProcessing 
+  } = useConversationManager();
+
+  // Speech coordination
+  const { 
+    canAvatarBeIdle, 
+    toggleAvatarMute, 
+    avatarSettings, 
+    globalSpeechState,
+    trackActivity 
+  } = useSpeechCoordination();
 
   // Load user data on mount
   useEffect(() => {
@@ -99,7 +112,7 @@ export default function AI_Avatar({
     loadUserData();
   }, [userInfo?.uid, enablePersonalization]);
 
-  // Monitor webcam for emotion changes
+  // Monitor webcam for emotion changes and update context
   useEffect(() => {
     if (!webcamRef?.current || !enablePersonalization) return;
 
@@ -109,7 +122,7 @@ export default function AI_Avatar({
         const visualDescription = webcamRef.current.getVisualDescription?.();
         
         if (emotionalState?.visual && emotionalState.confidence > 0.3) {
-          const newVisualContext = {
+          const emotionData = {
             emotionalState,
             visualDescription,
             faceDetected: emotionalState.faceDetected,
@@ -117,9 +130,10 @@ export default function AI_Avatar({
             confidence: emotionalState.confidence
           };
 
-          setVisualContext(newVisualContext);
+          // Update emotion context in conversation manager (no immediate response)
+          updateEmotionContext(emotionData);
 
-          // Check if emotion has significantly changed
+          // Check if emotion has significantly changed for potential smart response
           const hasEmotionChanged = lastEmotionChange?.emotion !== emotionalState.emotion;
           const hasHighConfidence = emotionalState.confidence > 0.4;
           
@@ -129,8 +143,12 @@ export default function AI_Avatar({
               timestamp: Date.now()
             });
             
-            // Generate response for emotion change with a slight delay
-            setTimeout(() => generateContextualResponse('emotion_change', newVisualContext), 1500);
+            // Let conversation manager decide if/when to respond based on context
+            setTimeout(() => {
+              if (!globalSpeechState.isAnySpeaking) {
+                handleEmotionAwareResponse(userInfo);
+              }
+            }, 2000); // Longer delay to prevent interruptions
           }
         }
       } catch (error) {
@@ -138,117 +156,141 @@ export default function AI_Avatar({
       }
     };
 
-    // Check emotions every 3 seconds
-    emotionCheckInterval.current = setInterval(checkEmotions, 3000);
+    // Check emotions every 5 seconds (less frequent to reduce interruptions)
+    emotionCheckInterval.current = setInterval(checkEmotions, 5000);
     
     return () => {
       if (emotionCheckInterval.current) {
         clearInterval(emotionCheckInterval.current);
       }
     };
-  }, [webcamRef, enablePersonalization, lastEmotionChange]);
+  }, [webcamRef, enablePersonalization, lastEmotionChange, updateEmotionContext, handleEmotionAwareResponse, userInfo, globalSpeechState.isAnySpeaking]);
 
-  // Generate contextual avatar responses
-  const generateContextualResponse = useCallback(async (trigger, currentVisualContext = null) => {
-    if (isProcessing || !enablePersonalization) return;
-    
-    // Prevent too frequent responses (min 10 seconds between responses)
-    const timeSinceLastResponse = Date.now() - lastResponseTime.current;
-    if (timeSinceLastResponse < 10000) return;
-
-    setIsProcessing(true);
-
-    try {
-      const response = await generateAvatarResponse(
-        userInfo, 
-        currentVisualContext || visualContext, 
-        trigger
-      );
-
-      if (response?.response) {
-        setCurrentResponse(response.response);
+  // Monitor conversation manager for avatar responses
+  useEffect(() => {
+    // Watch for new responses in conversation history
+    if (conversationHistory.length > 0) {
+      const lastEntry = conversationHistory[conversationHistory.length - 1];
+      
+      if (lastEntry.type === 'spacey' && lastEntry.timestamp > Date.now() - 2000) {
+        // New Spacey response - trigger talking animation
         setIsTalking(true);
-        lastResponseTime.current = Date.now();
-
-        // Add to response history
-        setResponseHistory(prev => [...prev.slice(-4), {
-          text: response.response,
-          trigger,
-          timestamp: Date.now(),
-          visualContext: currentVisualContext || visualContext
-        }]);
-
+        
         // Notify parent component
         if (onAvatarResponse) {
           onAvatarResponse({
-            response: response.response,
-            trigger,
-            visualContext: currentVisualContext || visualContext,
-            userTraits
+            response: lastEntry.content,
+            trigger: lastEntry.metadata?.responseType || 'conversation',
+            visualContext: currentContext.emotionContext,
+            userTraits,
+            conversationContext: lastEntry.context
           });
         }
 
-        // Speak the response
-        speak(response.response);
-
-        // Stop talking animation after a delay
-        setTimeout(() => setIsTalking(false), Math.max(3000, response.response.length * 50));
+        // Stop talking animation after estimated speech time
+        const estimatedDuration = Math.max(3000, lastEntry.content.length * 50);
+        setTimeout(() => setIsTalking(false), estimatedDuration);
       }
-    } catch (error) {
-      console.error('💫 Error generating avatar response:', error);
-    } finally {
-      setIsProcessing(false);
     }
-  }, [isProcessing, enablePersonalization, userInfo, visualContext, onAvatarResponse, userTraits, speak]);
+  }, [conversationHistory, onAvatarResponse, userTraits, currentContext.emotionContext]);
 
-  // Set up idle responses
+  // Set up intelligent idle checking
   useEffect(() => {
     if (!enablePersonalization) return;
 
-    const scheduleIdleResponse = () => {
-      // Clear existing timeout
-      if (idleResponseTimeout.current) {
-        clearTimeout(idleResponseTimeout.current);
+    const checkForIdleResponse = () => {
+      // Use conversation manager's intelligent idle checking
+      if (canAvatarBeIdle() && !globalSpeechState.isAnySpeaking) {
+        handleIdleCheck(userInfo);
       }
-
-      // Schedule next idle response (30-60 seconds)
-      const delay = 5 * 60 * 1000; // 5 minutes for idle response
-      idleResponseTimeout.current = setTimeout(() => {
-        generateContextualResponse('idle');
-        scheduleIdleResponse(); // Schedule the next one
-      }, delay);
     };
 
-    scheduleIdleResponse();
+    // Check every 60 seconds for idle responses (less frequent, more intelligent)
+    idleCheckInterval.current = setInterval(checkForIdleResponse, 60 * 1000);
 
     return () => {
-      if (idleResponseTimeout.current) {
-        clearTimeout(idleResponseTimeout.current);
+      if (idleCheckInterval.current) {
+        clearInterval(idleCheckInterval.current);
       }
     };
-  }, [generateContextualResponse, enablePersonalization]);
+  }, [enablePersonalization, canAvatarBeIdle, globalSpeechState.isAnySpeaking, handleIdleCheck, userInfo]);
 
   // Manual trigger for encouragement
   const triggerEncouragement = useCallback(() => {
-    generateContextualResponse('encouragement');
-  }, [generateContextualResponse]);
+    handleIdleCheck(userInfo); // Use idle check which can provide encouragement based on context
+  }, [handleIdleCheck, userInfo]);
 
   // Manual trigger for personalized compliment
   const giveCompliment = useCallback(() => {
-    if (visualContext?.visualDescription) {
-      generateContextualResponse('compliment');
+    if (currentContext.emotionContext?.visualDescription) {
+      handleEmotionAwareResponse(userInfo); // Use emotion-aware response for compliments
     } else {
-      generateContextualResponse('encouragement');
+      handleIdleCheck(userInfo); // Fallback to encouragement
     }
-  }, [generateContextualResponse, visualContext]);
+  }, [handleEmotionAwareResponse, handleIdleCheck, currentContext.emotionContext, userInfo]);
 
   return (
     <div className={`relative ${className}`}>
+      {/* Avatar Controls */}
+      <div className="absolute top-4 right-4 z-10 flex gap-2">
+        {/* Mute Button */}
+        <button
+          onClick={toggleAvatarMute}
+          className={`p-2 rounded-full backdrop-blur-sm transition-all duration-200 ${
+            avatarSettings.isMuted
+              ? 'bg-red-500/80 text-white hover:bg-red-400/80'
+              : 'bg-gray-700/80 text-gray-300 hover:bg-gray-600/80'
+          }`}
+          title={avatarSettings.isMuted ? 'Unmute Avatar' : 'Mute Avatar'}
+        >
+          {avatarSettings.isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+        </button>
+
+        {/* Settings Button */}
+        <button
+          onClick={() => setShowSettings(!showSettings)}
+          className="p-2 rounded-full bg-gray-700/80 text-gray-300 hover:bg-gray-600/80 backdrop-blur-sm transition-all duration-200"
+          title="Avatar Settings"
+        >
+          <Settings size={16} />
+        </button>
+      </div>
+
+      {/* Settings Panel */}
+      {showSettings && (
+        <div className="absolute top-16 right-4 z-10 bg-black/90 backdrop-blur-sm rounded-lg p-4 min-w-[200px] border border-gray-600/50">
+          <h3 className="text-white text-sm font-semibold mb-3">Avatar Settings</h3>
+          
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-300 text-xs">Muted</span>
+              <span className={`text-xs ${avatarSettings.isMuted ? 'text-red-400' : 'text-green-400'}`}>
+                {avatarSettings.isMuted ? 'Yes' : 'No'}
+              </span>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <span className="text-gray-300 text-xs">Speech Active</span>
+              <span className={`text-xs ${globalSpeechState.isAnySpeaking ? 'text-yellow-400' : 'text-gray-400'}`}>
+                {globalSpeechState.isAnySpeaking ? globalSpeechState.activeSource : 'None'}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-gray-300 text-xs">Can Be Idle</span>
+              <span className={`text-xs ${canAvatarBeIdle() ? 'text-green-400' : 'text-red-400'}`}>
+                {canAvatarBeIdle() ? 'Yes' : 'No'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main 3D Avatar */}
       <Canvas camera={{ position: [0, 1.6, 3.8], fov: 30 }}>
         <ambientLight intensity={0.6} />
         <directionalLight position={[2, 4, 2]} intensity={1.2} />
-        <TalkingModel isTalking={isTalking || isSpeaking || isExternalSpeaking} />
+        <TalkingModel isTalking={isTalking || isExternalSpeaking} />
       </Canvas>
 
       {/* Avatar Status Overlay */}
@@ -264,20 +306,20 @@ export default function AI_Avatar({
         )}
 
         {/* Visual Analysis Status */}
-        {visualContext?.faceDetected && (
+        {currentContext.emotionContext?.faceDetected && (
           <div className="flex items-center gap-2 px-3 py-1 bg-black/60 backdrop-blur-sm rounded-full text-xs">
             <Eye className="w-3 h-3 text-green-400" />
             <span className="text-white capitalize">
-              {visualContext.emotionalState.emotion}
+              {currentContext.emotionContext.emotion}
             </span>
             <span className="text-gray-300">
-              {Math.round(visualContext.confidence * 100)}%
+              {Math.round(currentContext.emotionContext.confidence * 100)}%
             </span>
           </div>
         )}
 
         {/* Speaking/Processing Status */}
-        {(isTalking || isSpeaking || isProcessing) && (
+        {(isTalking || isProcessing) && (
           <div className="flex items-center gap-2 px-3 py-1 bg-black/60 backdrop-blur-sm rounded-full text-xs">
             {isProcessing ? (
               <div className="w-3 h-3 border border-yellow-400 border-t-transparent rounded-full animate-spin" />
@@ -292,11 +334,15 @@ export default function AI_Avatar({
       </div>
 
       {/* Current Response Display */}
-      {currentResponse && (isTalking || isSpeaking) && (
+      {conversationHistory.length > 0 && isTalking && (
         <div className="absolute bottom-4 left-4 right-4 bg-black/80 backdrop-blur-sm rounded-lg p-4 border border-cyan-400/30">
           <div className="flex items-start gap-3">
             <MessageCircle className="w-5 h-5 text-cyan-400 mt-0.5 flex-shrink-0" />
-            <p className="text-white text-sm leading-relaxed">{currentResponse}</p>
+            <p className="text-white text-sm leading-relaxed">
+              {conversationHistory[conversationHistory.length - 1]?.type === 'spacey' 
+                ? conversationHistory[conversationHistory.length - 1].content 
+                : 'Speaking...'}
+            </p>
           </div>
         </div>
       )}
@@ -313,7 +359,7 @@ export default function AI_Avatar({
         </button>
         <button
           onClick={giveCompliment}
-          disabled={isProcessing || !visualContext?.faceDetected}
+          disabled={isProcessing || !currentContext.emotionContext?.faceDetected}
           className="px-3 py-1 bg-purple-600/80 hover:bg-purple-600 disabled:bg-gray-600 text-white text-xs rounded-full transition-colors"
           title="Get a personalized compliment"
         >
@@ -326,9 +372,9 @@ export default function AI_Avatar({
         <div className="absolute bottom-4 right-4 bg-black/60 backdrop-blur-sm rounded-lg p-2 text-xs max-w-64">
           <div className="text-gray-300 space-y-1">
             <div>Traits: {userTraits.join(', ')}</div>
-            <div>Responses: {responseHistory.length}</div>
-            {visualContext && (
-              <div>Visual: {visualContext.emotionalState.emotion} ({Math.round(visualContext.confidence * 100)}%)</div>
+            <div>Responses: {conversationHistory.filter(h => h.type === 'spacey').length}</div>
+            {currentContext.emotionContext && (
+              <div>Visual: {currentContext.emotionContext.emotion} ({Math.round(currentContext.emotionContext.confidence * 100)}%)</div>
             )}
           </div>
         </div>

@@ -15,13 +15,14 @@ const apiClient = axios.create({
 });
 
 /**
- * Sends a chat message to the AI backend.
+ * Sends a chat message to the AI backend with enhanced context support.
  * 
  * @param {string} message - The user's message text.
  * @param {object} userInfo - An object containing user data (e.g., from Firebase Auth).
+ * @param {object} options - Additional context and options for enhanced responses.
  * @returns {Promise<object>} The AI's response from the backend.
  */
-export const sendChatMessageToAI = async (message, userInfo) => {
+export const sendChatMessageToAI = async (message, userInfo, options = {}) => {
   try {
     // In a real application, you would get the user's auth token from Firebase
     // and include it in the headers for secure, authenticated requests.
@@ -31,23 +32,33 @@ export const sendChatMessageToAI = async (message, userInfo) => {
 
     console.log("🔗 API Base URL:", API_BASE_URL);
     console.log("📡 Full API URL:", `${API_BASE_URL}/api/chat/spacey`);
-    console.log("📤 Sending to backend:", { message, userInfo });
+    console.log("📤 Sending to backend:", { message, userInfo, options });
 
-    // The payload sent to your backend API.
-    // It includes the user's message and any relevant user context.
+    const { 
+      conversationContext = null, 
+      includeEmotionContext = false,
+      responseType = 'standard_chat'
+    } = options;
+
+    // The payload sent to your backend API with enhanced context.
     const payload = {
       prompt: message,
+      type: responseType,
       user: {
         id: userInfo?.uid || 'anonymous-user', // User's Firebase UID
         email: userInfo?.email || 'anonymous@example.com',
-        // You can add any other user attributes you fetch from Firestore here
-        // e.g., name: userInfo?.displayName
+        name: userInfo?.displayName || 'Explorer'
       },
-      // For a conversational AI, you might also include chat history
-      // history: chatHistory, 
+      // Enhanced context for unified conversation management
+      conversationHistory: conversationContext?.conversationHistory || [],
+      emotionContext: includeEmotionContext ? conversationContext?.emotionContext : null,
+      userActivity: conversationContext?.userActivity || 'active',
+      currentTopic: conversationContext?.currentTopic || null,
+      userMood: conversationContext?.userMood || 'neutral',
+      timeSinceLastInteraction: conversationContext?.timeSinceLastInteraction || 0,
     };
 
-    // Make the POST request to the '/chat' endpoint
+    // Make the POST request to the '/spacey' endpoint
     const response = await apiClient.post('/spacey', payload);
     
     // Return the full response data

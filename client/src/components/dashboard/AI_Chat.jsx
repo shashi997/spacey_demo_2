@@ -3,9 +3,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, Mic, MicOff } from 'lucide-react';
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition';
-import useSpeechSynthesis from '../../hooks/useSpeechSynthesis';
+import { useSpeechCoordination } from '../../hooks/useSpeechCoordination.jsx';
+import { useConversationManager } from '../../hooks/useConversationManager.jsx';
 import { useAuth } from '../../hooks/useAuth';
-import { sendChatMessageToAI } from '../../api/spacey_api';
 
 const ChatMessage = ({ sender, text }) => {
   const isUser = sender === 'user';
@@ -25,11 +25,7 @@ const ChatMessage = ({ sender, text }) => {
 };
 
 const AIChat = ({ onDebugDataUpdate, onAiSpeakingChange }) => {
-  const [messages, setMessages] = useState([
-    { sender: 'ai', text: "Hello! I'm your AI assistant. How can I help you on your mission today?" }
-  ]);
   const [inputText, setInputText] = useState('');
-  const [isAiResponding, setIsAiResponding] = useState(false);
   const chatContainerRef = useRef(null);
   const { currentUser } = useAuth();
 
@@ -45,18 +41,38 @@ const AIChat = ({ onDebugDataUpdate, onAiSpeakingChange }) => {
     }
   });
 
-  const {
-    speak,
-    cancel: stopSpeaking,
-    isSpeaking: isAiSpeaking,
-    isSupported: isTtsSupported
-  } = useSpeechSynthesis();
+  // Unified conversation management
+  const { 
+    handleUserChat, 
+    conversationHistory, 
+    isProcessing: isAiResponding 
+  } = useConversationManager();
+
+  const { setContextState, trackActivity } = useSpeechCoordination();
+
+  // Convert conversation history to chat messages format
+  const messages = conversationHistory
+    .filter(entry => entry.type === 'user' || entry.type === 'spacey')
+    .map(entry => ({
+      sender: entry.type === 'user' ? 'user' : 'ai',
+      text: entry.content,
+      timestamp: entry.timestamp
+    }));
+
+  // Add initial greeting if no messages
+  if (messages.length === 0) {
+    messages.unshift({
+      sender: 'ai',
+      text: "Hello! I'm Spacey, your AI assistant. How can I help you on your cosmic journey today?",
+      timestamp: Date.now()
+    });
+  }
 
   useEffect(() => {
     if (onAiSpeakingChange) {
-      onAiSpeakingChange(isAiSpeaking);
+      onAiSpeakingChange(isAiResponding); // Use processing state instead of speech state
     }
-  }, [isAiSpeaking, onAiSpeakingChange]);
+  }, [isAiResponding, onAiSpeakingChange]);
 
   useEffect(() => {
     if (chatContainerRef.current) {
@@ -70,35 +86,51 @@ const AIChat = ({ onDebugDataUpdate, onAiSpeakingChange }) => {
     }
   }, [isListening, transcript]);
 
+  // Clear chat context when no longer actively chatting
+  useEffect(() => {
+    let chatTimeout;
+
+    if (isAiResponding) {
+      // If AI is responding, keep chat context active
+      setContextState('isInChat', true);
+    } else {
+      // Clear chat context after 10 seconds of inactivity
+      chatTimeout = setTimeout(() => {
+        setContextState('isInChat', false);
+      }, 10000);
+    }
+
+    return () => {
+      if (chatTimeout) clearTimeout(chatTimeout);
+    };
+  }, [isAiResponding, setContextState]);
+
   const handleSendMessage = async (text) => {
     const trimmedText = text.trim();
-    if (!trimmedText || isAiResponding || isAiSpeaking) return;
+    if (!trimmedText || isAiResponding) return;
 
-    const userMessage = { sender: 'user', text: trimmedText };
-    setMessages(prev => [...prev, userMessage]);
+    // Track activity and set chat context
+    trackActivity();
     setInputText('');
-    setIsAiResponding(true);
 
     try {
-      const aiData = await sendChatMessageToAI(trimmedText, currentUser);
-      const aiMessage = { sender: 'ai', text: aiData.message };
-      setMessages(prev => [...prev, aiMessage]);
+      // Use conversation manager for unified chat handling
+      const response = await handleUserChat(trimmedText, currentUser);
 
-      if (isTtsSupported && aiData.message) {
-        speak(aiData.message);
-      }
-
-      if (onDebugDataUpdate) {
+      if (response && onDebugDataUpdate) {
         onDebugDataUpdate({
           timestamp: Date.now(),
           userMessage: trimmedText,
-          aiResponse: aiData.message
+          aiResponse: response.message || response.response,
+          metadata: {
+            responseType: 'unified-chat',
+            hasEmotionContext: !!response.emotionContext
+          }
         });
       }
     } catch (err) {
-      setMessages(prev => [...prev, { sender: 'ai', text: 'Sorry, something went wrong.' }]);
-    } finally {
-      setIsAiResponding(false);
+      console.error('Chat error:', err);
+      // Conversation manager handles fallback responses
     }
   };
 

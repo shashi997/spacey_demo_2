@@ -10,6 +10,7 @@ import WebcamFeed from '../components/dashboard/Webcam_Feed';
 import AIChat from '../components/dashboard/AI_Chat';
 import LessonCatalogueModal from '../components/dashboard/LessonCatalogueModal';
 import { useAuth } from '../hooks/useAuth';
+import { useConversationManager } from '../hooks/useConversationManager.jsx';
 
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'; // 👈 NEW
 
@@ -40,6 +41,9 @@ const DashboardPage = () => {
   // Refs for component communication
   const webcamRef = useRef(null);
   const { user } = useAuth(); // Get current user for personalization
+  
+  // Unified conversation management
+  const { updateEmotionContext, conversationHistory } = useConversationManager();
 
 
   const handleChatDebugUpdate = (debugEntry) => {
@@ -59,9 +63,12 @@ const DashboardPage = () => {
     });
   };
 
-  // Handle emotion detection from webcam with throttling
+  // Handle emotion detection from webcam with unified conversation management
   const handleEmotionDetected = useCallback((emotionData) => {
-    // Only update if emotion data has changed significantly
+    // Update conversation manager's emotion context
+    updateEmotionContext(emotionData);
+    
+    // Update local state for UI display with throttling
     setEmotionData(prevData => {
       // Simple throttling: don't update if emotion is the same and confidence hasn't changed much
       if (prevData?.emotionalState?.emotion === emotionData?.emotionalState?.emotion &&
@@ -71,7 +78,7 @@ const DashboardPage = () => {
       return emotionData;
     });
     
-    console.log('🎭 Emotion detected:', emotionData);
+    console.log('🎭 Emotion detected and context updated:', emotionData);
     
     // Add to debug data if debug panel is open
     if (isDebugOpen && emotionData?.emotionalState?.emotion) {
@@ -83,11 +90,12 @@ const DashboardPage = () => {
         debug: {
           confidence: emotionData.confidence || 0,
           faceDetected: emotionData.faceDetected || false,
-          rawData: emotionData
+          rawData: emotionData,
+          conversationContext: 'Updated in conversation manager'
         }
       }].slice(-50));
     }
-  }, [isDebugOpen]);
+  }, [isDebugOpen, updateEmotionContext]);
 
   // Handle avatar responses
   const handleAvatarResponse = (responseData) => {

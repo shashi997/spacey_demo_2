@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { Rocket } from 'lucide-react';
 
 const TRAIT_LABELS = [
   { key: 'cautious', label: 'Cautious', color: 'bg-cyan-400' },
@@ -9,7 +10,6 @@ const TRAIT_LABELS = [
 
 // Use a more visually appealing avatar placeholder
 const AVATAR_URL = 'https://api.dicebear.com/7.x/adventurer/svg?seed=Spacey';
-const LOGO_URL = '/spaceyscience_logo.jpeg';
 
 const StarryBg = () => (
   <svg className="absolute inset-0 w-full h-full z-0" style={{ pointerEvents: 'none' }}>
@@ -52,9 +52,9 @@ const PlayerProfile = ({ userId }) => {
 
   // Sort missions by date desc
   const sortedMissions = [...missions].sort((a, b) => (b.completed_at || '').localeCompare(a.completed_at || ''));
-  // For progress dots (show up to 8)
+  // For progress dots (show up to 5)
   const completedCount = missions.filter(m => m.completed_at).length;
-  const progressDots = Array(8).fill(0).map((_, i) => i < completedCount);
+  const progressDots = Array(5).fill(0).map((_, i) => i < completedCount);
 
   return (
     <div className="w-full max-w-md mx-auto rounded-2xl shadow-2xl border border-blue-200/30 p-5 text-white relative overflow-hidden bg-gradient-to-br from-[#23283a] to-[#181c24]" style={{minHeight:'350px'}}>
@@ -114,9 +114,13 @@ const PlayerProfile = ({ userId }) => {
           </div>
         </div>
       </div>
-      {/* Missions Completed Progress */}
-      <div className="mt-6 mb-1">
-        <h3 className="text-base font-bold mb-1 tracking-wide text-blue-200">MISSIONS COMPLETED</h3>
+      {/* Missions Completed Progress - moved to branding area */}
+      {/* Branding with white circular background and shadow */}
+      <div className="absolute bottom-3 right-3 flex flex-col items-center gap-2 opacity-95 z-10">
+        <span className="font-extrabold tracking-widest text-base text-white mb-1">MISSIONS COMPLETED</span>
+        <span className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-lg border border-blue-200 mb-1">
+          <Rocket size={28} className="text-blue-500" />
+        </span>
         <div className="flex gap-2 mb-1">
           {progressDots.map((filled, i) => (
             <span
@@ -125,12 +129,6 @@ const PlayerProfile = ({ userId }) => {
             ></span>
           ))}
         </div>
-      </div>
-      {/* Branding with white circular background and shadow */}
-      <div className="absolute bottom-3 right-3 flex items-center gap-2 opacity-95 z-10">
-        <span className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-lg border border-blue-200">
-          <img src={LOGO_URL} alt="Spacey Science Logo" className="w-7 h-7 rounded-lg" />
-        </span>
         <span className="font-extrabold tracking-widest text-lg text-white">SPACEY <span className="text-cyan-300">SCIENCE</span></span>
       </div>
       {/* Loading overlay */}

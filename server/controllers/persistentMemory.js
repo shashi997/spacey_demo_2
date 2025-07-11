@@ -295,30 +295,42 @@ class PersistentMemoryManager {
   }
 
   updateEmotionalPatterns(profile, interaction) {
-    const emotion = interaction.metadata.emotionalState;
+    const { emotionalState, visualInfo } = interaction.metadata;
     
-    // Add to mood history
-    profile.emotional.moodHistory.push({
-      emotion,
-      timestamp: interaction.timestamp,
-      confidence: interaction.metadata.emotionalConfidence || 0.5
-    });
+    if (emotionalState && emotionalState.emotion) {
+      // Add to mood history, now storing the raw emotion object
+      profile.emotional.moodHistory.push({
+        emotion: emotionalState.emotion,
+        confidence: emotionalState.confidence || 0,
+        dominantEmotion: emotionalState.dominantEmotion,
+        rawEmotions: emotionalState.rawEmotions,
+        timestamp: interaction.timestamp
+      });
 
-    // Keep only recent moods
-    if (profile.emotional.moodHistory.length > 10) {
-      profile.emotional.moodHistory.shift();
+      // Keep only recent moods
+      if (profile.emotional.moodHistory.length > 20) { // Increased for better analysis
+        profile.emotional.moodHistory.shift();
+      }
+
+      // Update dominant mood based on more robust data
+      const recentMoods = profile.emotional.moodHistory.slice(-10);
+      const moodCounts = {};
+      recentMoods.forEach(mood => {
+        const emotionToCount = mood.dominantEmotion || mood.emotion;
+        moodCounts[emotionToCount] = (moodCounts[emotionToCount] || 0) + 1;
+      });
+      
+      if (Object.keys(moodCounts).length > 0) {
+        profile.emotional.dominantMood = Object.keys(moodCounts).reduce((a, b) => 
+          moodCounts[a] > moodCounts[b] ? a : b
+        );
+      }
     }
 
-    // Update dominant mood
-    const recentMoods = profile.emotional.moodHistory.slice(-5);
-    const moodCounts = {};
-    recentMoods.forEach(mood => {
-      moodCounts[mood.emotion] = (moodCounts[mood.emotion] || 0) + 1;
-    });
-    
-    profile.emotional.dominantMood = Object.keys(moodCounts).reduce((a, b) => 
-      moodCounts[a] > moodCounts[b] ? a : b
-    );
+    if (visualInfo && visualInfo.age) {
+      profile.visual.age = visualInfo.age;
+      profile.visual.gender = visualInfo.gender;
+    }
   }
 
   updateLearningAnalytics(profile, interaction) {
@@ -500,6 +512,11 @@ class PersistentMemoryManager {
         summary += `Understands: ${context.masteredConcepts.slice(-3).join(', ')}.`;
       }
 
+      // Add visual info to summary
+      if (profile.visual.age && profile.visual.gender) {
+        summary += `Appears to be a ${profile.visual.gender} around ${profile.visual.age} years old. `;
+      }
+      
       return summary;
     }).catch(error => {
       console.error('Error generating context summary:', error);
@@ -508,60 +525,18 @@ class PersistentMemoryManager {
   }
 
   detectEmotionalState(userId, currentMessage) {
-    return this.generateEnhancedContext(userId).then(context => {
-      const msg = currentMessage.toLowerCase();
-      
-      // Analyze current message for emotional cues
-      let emotion = 'neutral';
-      let confidence = 0.5;
-
-      // Frustration indicators
-      if (msg.includes('stuck') || msg.includes('confused') || msg.includes('help') || 
-          msg.includes("don't understand") || msg.includes('why')) {
-        emotion = 'frustrated';
-        confidence = 0.8;
-      }
-      // Excitement indicators  
-      else if (msg.includes('amazing') || msg.includes('exciting') || msg.includes('wow') ||
-               msg.includes('cool') || msg.match(/!{2,}/)) {
-        emotion = 'excited';
-        confidence = 0.9;
-      }
-      // Engagement indicators
-      else if (msg.includes('yes') || msg.includes('ready') || msg.includes('more') ||
-               msg.includes('teach me') || msg.includes('tell me')) {
-        emotion = 'engaged';
-        confidence = 0.7;
-      }
-      // Uncertainty indicators
-      else if (msg.includes('maybe') || msg.includes('not sure') || msg.includes('think') ||
-               msg.match(/\?{2,}/)) {
-        emotion = 'uncertain';
-        confidence = 0.6;
-      }
-
-      // Consider user's typical mood patterns
-      if (context.dominantMood && context.dominantMood !== 'neutral') {
-        // Adjust confidence based on historical patterns
-        if (context.dominantMood === emotion) {
-          confidence = Math.min(confidence + 0.1, 1.0);
-        }
-      }
-
-      return { emotion, confidence };
-    }).catch(error => {
-      console.error('Error detecting emotional state:', error);
-      return { emotion: 'neutral', confidence: 0.5 };
-    });
+    // Deprecated: This logic is now handled client-side with face-api.js
+    // Returning a neutral state to maintain compatibility with older code.
+    return Promise.resolve({ emotion: 'neutral', confidence: 0.5 });
   }
 
   getUserLearningStyle(userId) {
-    return this.generateEnhancedContext(userId).then(context => {
-      return context.learningStyle;
-    }).catch(error => {
-      console.error('Error getting learning style:', error);
-      return 'unknown';
-    });
+    return this.getUserProfile(userId)
+      .then(profile => profile.learning.preferredStyle)
+      .catch(error => {
+        console.error('Error getting learning style:', error);
+        return 'unknown';
+      });
   }
 
   // === PLAYER PROGRESS & TRAITS API ===

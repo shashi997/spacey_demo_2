@@ -42,8 +42,32 @@ const DashboardPage = () => {
   const { user } = useAuth(); // Get current user for personalization
   
   // Unified conversation management
-  const { updateEmotionContext, conversationHistory } = useConversationManager();
+  const { 
+    isReady: isConversationReady,
+    conversationHistory, 
+    sendUserMessage,
+    startNarration,
+    updateEmotionContext
+  } = useConversationManager(user);
 
+  useEffect(() => {
+    if (isConversationReady) {
+      sendUserMessage({ type: 'event', eventType: 'greeting', message: 'User has started a new session.' });
+    }
+    
+    return () => {
+      if (isConversationReady) {
+        sendUserMessage({ type: 'event', eventType: 'farewell', message: 'User has ended the session.' });
+      }
+    };
+  }, [isConversationReady, sendUserMessage]);
+  
+  const handleUserMessage = async (message) => {
+    if (!isConversationReady) return;
+
+    // Here, we'll use the conversation manager to handle the message
+    await sendUserMessage({ type: 'text', message, eventType: 'interaction' });
+  };
 
   const handleChatDebugUpdate = (debugEntry) => {
     setChatDebugData(prev => {

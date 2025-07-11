@@ -84,54 +84,6 @@ class ConversationMemory {
     return summary;
   }
 
-  detectEmotionalState(userId, currentMessage) {
-    const recent = this.getRecentInteractions(userId, 3);
-    const msg = currentMessage.toLowerCase();
-    
-    // Analyze current message for emotional cues
-    let emotion = 'neutral';
-    let confidence = 0.5;
-
-    // Frustration indicators
-    if (msg.includes('stuck') || msg.includes('confused') || msg.includes('help') || 
-        msg.includes("don't understand") || msg.includes('why')) {
-      emotion = 'frustrated';
-      confidence = 0.8;
-    }
-    
-    // Excitement indicators  
-    else if (msg.includes('amazing') || msg.includes('exciting') || msg.includes('wow') ||
-             msg.includes('cool') || msg.match(/!{2,}/)) {
-      emotion = 'excited';
-      confidence = 0.9;
-    }
-    
-    // Engagement indicators
-    else if (msg.includes('yes') || msg.includes('ready') || msg.includes('more') ||
-             msg.includes('teach me') || msg.includes('tell me')) {
-      emotion = 'engaged';
-      confidence = 0.7;
-    }
-    
-    // Uncertainty indicators
-    else if (msg.includes('maybe') || msg.includes('not sure') || msg.includes('think') ||
-             msg.match(/\?{2,}/)) {
-      emotion = 'uncertain';
-      confidence = 0.6;
-    }
-
-    // Consider conversation history for context
-    if (recent.length > 0) {
-      const lastInteraction = recent[recent.length - 1];
-      if (lastInteraction.userMessage.includes('help') && msg.length < 10) {
-        emotion = 'still_confused';
-        confidence = 0.8;
-      }
-    }
-
-    return { emotion, confidence };
-  }
-
   getUserLearningStyle(userId) {
     const recent = this.getRecentInteractions(userId, 8);
     if (recent.length < 3) return 'unknown';
@@ -166,10 +118,4 @@ class ConversationMemory {
   }
 }
 
-// Create global instance
-const conversationMemory = new ConversationMemory();
-
-module.exports = {
-  ConversationMemory,
-  conversationMemory
-}; 
+module.exports = ConversationMemory;

@@ -30,7 +30,8 @@ const buildSystemPrompt = (userPrompt, userInfo = {}, conversationContext = {}) 
     masteredConcepts = [],
     dominantMood = 'neutral',
     averageMessageLength = 0,
-    topInterests = []
+    topInterests = [],
+    recentConversation = []
   } = conversationContext;
 
   // Dynamic personality adjustments based on emotional state
@@ -92,6 +93,14 @@ You are **Spacey**, the witty AI assistant combining Baymax's warm empathy with 
 😊 **USER'S EMOTIONAL STATE**: ${emotionalState.emotion} (confidence: ${Math.round(emotionalState.confidence * 100)}%)
 📚 **LEARNING STYLE**: ${learningStyle}
 🎯 **PERSONALITY ADJUSTMENT**: ${personalityAdjustment}
+
+💬 **RECENT CONVERSATION**:
+${recentConversation.length > 0 ? 
+  recentConversation.slice(-5).map(msg => 
+    `${msg.type === 'user' ? '👤 User' : '🤖 Spacey'}: ${msg.content}`
+  ).join('\n') : 
+  'This is the beginning of our conversation.'
+}
 
 📊 **USER LEARNING PROFILE**:
 - Total interactions: ${totalInteractions} (${sessionInteractions} this session)
@@ -465,7 +474,9 @@ const handleUnifiedChat = async (req, res, userId, user, prompt, requestBody = {
             // Add conversation manager context
             userActivity: requestBody.userActivity || 'active',
             currentTopic: requestBody.currentTopic,
-            timeSinceLastInteraction: requestBody.timeSinceLastInteraction || 0
+            timeSinceLastInteraction: requestBody.timeSinceLastInteraction || 0,
+            // Include recent conversation history for immediate context
+            recentConversation: requestBody.conversationHistory || []
         };
 
         // Enhance prompt with visual context if available

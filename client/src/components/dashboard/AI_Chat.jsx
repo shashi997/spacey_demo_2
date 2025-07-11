@@ -26,6 +26,7 @@ const ChatMessage = ({ sender, text }) => {
 
 const AIChat = ({ onDebugDataUpdate, onAiSpeakingChange }) => {
   const [inputText, setInputText] = useState('');
+  const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
   const chatContainerRef = useRef(null);
   const { currentUser } = useAuth();
 
@@ -68,15 +69,39 @@ const AIChat = ({ onDebugDataUpdate, onAiSpeakingChange }) => {
     });
   }
 
+  // Function to check if user is scrolled to bottom
+  const isScrolledToBottom = () => {
+    if (!chatContainerRef.current) return true;
+    const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+    const threshold = 5; // Allow 5px threshold for "close enough"
+    return scrollHeight - scrollTop - clientHeight <= threshold;
+  };
+
+  // Handle scroll events to track user's scroll position
+  const handleScroll = () => {
+    setIsUserScrolledUp(!isScrolledToBottom());
+  };
+
   useEffect(() => {
     if (onAiSpeakingChange) {
       onAiSpeakingChange(isAiResponding); // Use processing state instead of speech state
     }
   }, [isAiResponding, onAiSpeakingChange]);
 
+  // Smart auto-scroll: only auto-scroll if user is at bottom or if it's a new user message
   useEffect(() => {
-    if (chatContainerRef.current) {
+    if (chatContainerRef.current && !isUserScrolledUp) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [messages, isUserScrolledUp]);
+
+  // Auto-scroll when user sends a message (always scroll for user's own messages)
+  useEffect(() => {
+    if (messages.length > 0 && messages[messages.length - 1].sender === 'user') {
+      setIsUserScrolledUp(false);
+      if (chatContainerRef.current) {
+        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      }
     }
   }, [messages]);
 
@@ -149,7 +174,11 @@ const AIChat = ({ onDebugDataUpdate, onAiSpeakingChange }) => {
 
   return (
     <div className="h-full flex flex-col bg-black/70">
-      <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div 
+        ref={chatContainerRef} 
+        className="flex-1 overflow-y-auto p-4 space-y-4"
+        onScroll={handleScroll}
+      >
         {messages.map((msg, i) => (
           <ChatMessage key={i} sender={msg.sender} text={msg.text} />
         ))}

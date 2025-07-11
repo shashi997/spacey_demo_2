@@ -9,7 +9,7 @@ const chatRoutes = require('./routes/chatRoutes');
 const app = express();
 
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Increased from default 100kb to support conversation history
 app.use(cors());
 
 // Add some debug logging

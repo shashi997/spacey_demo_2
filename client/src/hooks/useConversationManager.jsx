@@ -84,7 +84,13 @@ export const ConversationManagerProvider = ({ children }) => {
 
   // Build comprehensive context for AI requests
   const buildConversationContext = useCallback(() => {
-    const recentHistory = conversationHistory.slice(-10); // Last 10 interactions
+    // Get recent history and optimize payload size
+    const recentHistory = conversationHistory.slice(-8).map(entry => ({
+      type: entry.type,
+      content: entry.content.length > 500 ? entry.content.substring(0, 500) + '...' : entry.content, // Truncate very long messages
+      timestamp: entry.timestamp
+    })); // Last 8 interactions (reduced from 10)
+    
     const emotionContext = currentContext.emotionContext;
     
     return {

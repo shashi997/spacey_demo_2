@@ -12,6 +12,11 @@
                 "audio": "/audio/emergency_klaxon.mp3",
                 "3d_model": "/models/jumping_space-suit1.glb"
             },
+            "knowledge_check": {
+                "enabled": true,
+                "question": "To ensure we're on the same page, Commander: what is your role and what is the immediate crisis?",
+                "evaluation_criteria": "User must state they are the Systems Commander (or similar) and that the main energy core has shut down."
+            },
             "learning_goal": "Introduce the crisis scenario and establish the player's role.",
             "llm_instruction": "Narrate the opening scene of the Mars Base Ares-X crisis. Set a serious, urgent tone. Directly address the student as 'Commander'. Then, introduce the immediate problem: the main energy core shutdown. Ensure the narrative flows into the next block's prompt.",
             "next_block": "Initial Scan"
@@ -20,6 +25,11 @@
             "block_id": "Initial Scan",
             "type": "choice",
             "content": "System alerts appear. Oxygen levels steady. Temperature dropping. Power estimated to last: 45 minutes.",
+            "knowledge_check": {
+                "enabled": true,
+                "question": "Of the alerts you see, which two are the most critical threats right now?",
+                "evaluation_criteria": "User must identify the dropping temperature and the limited power (45 minutes)."
+            },
             "media": {
                 "image": "/images/control_panel_alerts.gif"
             },
@@ -43,6 +53,11 @@
             "block_id": "Solar Flare Detected",
             "type": "choice",
             "content": "You detect a spike. A flare may have disrupted the power grid. Communication with Earth is delayed.",
+            "knowledge_check": {
+                "enabled": true,
+                "question": "What are the two main consequences of the solar flare you just detected?",
+                "evaluation_criteria": "User should mention the disruption to the power grid and the delay in communications with Earth."
+            },
             "media": {
                 "image": "/images/solar_flare_view.jpg"
             },
@@ -66,6 +81,11 @@
             "block_id": "Circuit Burn",
             "type": "choice",
             "content": "You find a circuit overload in the cooling array. It’s overheating.",
+            "knowledge_check": {
+                "enabled": true,
+                "question": "What is the specific internal problem you've found and in which system?",
+                "evaluation_criteria": "User must identify the circuit overload (or overheating) in the cooling array."
+            },
             "media": {
                 "image": "/images/burnt_circuit.gif"
             },
@@ -89,6 +109,11 @@
             "block_id": "AI Decision Conflict",
             "type": "choice",
             "content": "The Mars AI system suggests overriding your choice. Introduce decision under uncertainty.",
+            "knowledge_check": {
+                "enabled": true,
+                "question": "What is the core conflict you're facing with the base AI right now?",
+                "evaluation_criteria": "User should state that the AI is suggesting a different course of action or wants to override their decision."
+            },
             "choices": [
               {
                 "text": "Override the AI",
@@ -109,6 +134,11 @@
             "block_id": "Complication",
             "type": "choice",
             "content": "Your decision causes an unexpected secondary failure: Life support systems begin to degrade. This raises the stakes.",
+            "knowledge_check": {
+                "enabled": true,
+                "question": "What is the new, critical failure that has just occurred as a result of your last decision?",
+                "evaluation_criteria": "User must identify that the life support systems are degrading."
+            },
             "media": {
                 "audio": "/audio/life_support_warning.mp3"
             },
@@ -132,6 +162,11 @@
           "block_id": "AI Reaction",
           "type": "reflection",
           "content": "Spacey responds to your pattern so far:",
+          "knowledge_check": {
+                "enabled": true,
+                "question": "Spacey has just given you feedback on your decision-making style. In your own words, what did it say about your approach?",
+                "evaluation_criteria": "User should be able to paraphrase the AI's reflection, whether it was about being bold/risk-taking or cautious/systems-oriented."
+            },
           "dynamic_content": [
             {
               "condition_tags": ["bold", "assertive", "active", "risk"],
@@ -150,6 +185,11 @@
           "block_id": "Last Major Decision",
           "type": "choice",
           "content": "Power restored partially. You must decide which part of base gets priority:",
+          "knowledge_check": {
+                "enabled": true,
+                "question": "With partial power restored, what are the three systems you must choose between to prioritize?",
+                "evaluation_criteria": "User must list the three options: life support, research labs, and communications."
+            },
           "media": {
             "image": "/images/base_power_schematic.jpg"
           },
@@ -179,6 +219,11 @@
             "block_id": "Unexpected Outcome",
             "type": "narration",
             "content": "Depending on past choices, you experience one of three consequences: Base stabilises, Earth contact re-established, or Team member suffers from early oxygen loss. Realism in outcome, no perfect win.",
+            "knowledge_check": {
+                "enabled": true,
+                "question": "Briefly describe the outcome of your mission. What was the result of your final major decision?",
+                "evaluation_criteria": "User must summarize the specific outcome they received (e.g., 'The base is stable, but we lost contact with Earth')."
+            },
             "dynamic_outcome": [
               {
                 "condition_tags": ["safe"],
@@ -208,6 +253,11 @@
           "block_id": "Spacey Final Reflection",
           "type": "reflection",
           "content": "Spacey says:",
+          "knowledge_check": {
+                "enabled": true,
+                "question": "What was Spacey's final assessment of your overall leadership style during this crisis?",
+                "evaluation_criteria": "User should be able to summarize the final reflection, whether it was about valuing speed over safety or thinking in systems."
+            },
           "dynamic_content": [
             {
               "condition_tags": ["bold", "active", "risk", "assertive"],
@@ -227,6 +277,11 @@
           "block_id": "Learning Quiz",
           "type": "quiz",
           "content": "Test your knowledge about the crisis:",
+          "knowledge_check": {
+                "enabled": false,
+                "question": "",
+                "evaluation_criteria": ""
+            },
           "questions": [
             {
               "question_text": "What's a solar flare and how does it impact electronics?",
@@ -269,6 +324,11 @@
           "block_id": "Debrief",
           "type": "narration",
           "content": "Short summary of decisions taken. Mission outcome: Stabilised with partial systems loss.",
+          "knowledge_check": {
+                "enabled": false,
+                "question": "",
+                "evaluation_criteria": ""
+            },
           "dynamic_traits": [
             {
               "condition_tags": ["cautious"],
@@ -302,6 +362,11 @@
           "block_id": "Unlock / Next Mission",
           "type": "narration",
           "content": "You've unlocked: Solar Shield Crisis. Also update profile dashboard with behaviour traits.",
+          "knowledge_check": {
+                "enabled": false,
+                "question": "",
+                "evaluation_criteria": ""
+            },
           "mission_duration": "Total Duration: ~15-18 min (3 min setup + narration, 7 min gameplay, 3 min reflection + feedback, 2 min quiz)",
           "educational_takeaways": [
             "Energy flow and resource triage in emergencies",

@@ -7,31 +7,129 @@ import { MessageCircle, Brain, Eye, Volume2, VolumeX, Settings } from 'lucide-re
 import { fetchUserTraits, getConversationContext } from '../../api/spacey_api';
 import { useSpeechCoordination } from '../../hooks/useSpeechCoordination.jsx';
 import { useConversationManager } from '../../hooks/useConversationManager.jsx';
+import * as THREE from 'three';
 
-function TalkingModel({ isTalking }) {
+
+
+function TalkingModel({ isTalking ,expression = 'neutral'}) {
   const group = useRef();
-  const { scene, animations } = useGLTF('/models/Talking1.glb');
+  const { scene, animations } = useGLTF('/models/talking11.glb');
   const { actions, names } = useAnimations(animations, group);
   const [animationName, setAnimationName] = useState(null);
+  const [blinkCooldown, setBlinkCooldown] = useState(0);
 
-  // Floating effect
-  useFrame((state) => {
-    if (group.current) {
-      const t = state.clock.getElapsedTime();
-      group.current.position.y = Math.sin(t * 1.5) * 0.08 - 1.0; // Raised from -1.4 to -1.0 to prevent clipping
+  const expressionPresets = {
+  neutral: {browInnerUp: 0.2,
+    eyeSquintLeft: 0.6,
+    eyeSquintRight: 0.6,
+    mouthSmileLeft: 0.3,
+    mouthSmileRight: 0.4},
+  happy: {
+    browInnerUp: 0.2,
+    eyeSquintLeft: 0.6,
+    eyeSquintRight: 0.6,
+    mouthSmileLeft: 0.7,
+    mouthSmileRight: 0.7
+  },
+  sad: {
+    browInnerUp: 0.5,
+    eyeSquintLeft: 0.4,
+    eyeSquintRight: 0.4,
+    mouthFrownLeft: 0.7,
+    mouthFrownRight: 0.7
+  },
+  surprised: {
+    browInnerUp: 1.0,
+    eyeWideLeft: 1.0,
+    eyeWideRight: 1.0,
+    jawOpen: 1.0
+  },
+  angry: {
+    browDownLeft: 1.0,
+    browDownRight: 1.0,
+    eyeSquintLeft: 0.7,
+    eyeSquintRight: 0.7,
+    mouthPressLeft: 0.8,
+    mouthPressRight: 0.8
+  }
+};
+
+  // Log morphs once
+  useEffect(() => {
+    if (!scene) return;
+    scene.traverse((child) => {
+      if (child.isMesh && child.morphTargetDictionary) {
+        console.log(`🧠 Morph targets on ${child.name}:`, Object.keys(child.morphTargetDictionary));
+      }
+    });
+  }, [scene]);
+
+useFrame((state, delta) => {
+  const t = state.clock.getElapsedTime();
+  const preset = expressionPresets[expression] || expressionPresets.neutral;
+
+  if (group.current) {
+    group.current.position.y = Math.sin(t * 1.5) * 0.08 - 1.0;
+  }
+
+  group.current?.traverse((child) => {
+    if (!child.isMesh || !child.morphTargetDictionary || !child.morphTargetInfluences) return;
+
+    const dict = child.morphTargetDictionary;
+    const influences = child.morphTargetInfluences;
+
+    // Apply facial expression morph targets
+    Object.keys(dict).forEach((key) => {
+      const targetValue = preset[key] ?? 0;
+      influences[dict[key]] = THREE.MathUtils.lerp(influences[dict[key]], targetValue, 0.1);
+    });
+
+    // Lip sync animation (simple mouth open-close)
+    const mouthKey = dict["mouthOpen"] !== undefined
+      ? "mouthOpen"
+      : dict["jawOpen"] !== undefined
+      ? "jawOpen"
+      : null;
+
+    if (mouthKey !== null) {
+      const index = dict[mouthKey];
+      const target = isTalking ? (Math.sin(t * 12) + 1) / 2 : 0;
+      influences[index] = THREE.MathUtils.lerp(influences[index], target, 0.25);
+    }
+
+    // Eye blinking
+    const blinkLeft = dict["blinkLeft"];
+    const blinkRight = dict["blinkRight"];
+    const shouldBlink = blinkCooldown <= 0 && Math.random() < 0.02;
+    const blinkIntensity = shouldBlink ? 1 : 0;
+
+    if (blinkLeft !== undefined && blinkRight !== undefined) {
+      influences[blinkLeft] = THREE.MathUtils.lerp(influences[blinkLeft], blinkIntensity, 0.25);
+      influences[blinkRight] = THREE.MathUtils.lerp(influences[blinkRight], blinkIntensity, 0.25);
+
+      if (shouldBlink) {
+        setBlinkCooldown(3 + Math.random() * 3); // next blink in 3–6s
+      }
     }
   });
 
+  // Update blink cooldown
+  if (blinkCooldown > 0) {
+    setBlinkCooldown((prev) => prev - delta);
+  }
+});
+
+
+  // Default idle animation if present
   useEffect(() => {
     if (names.length > 0) {
-      setAnimationName(names[0]); // Auto-pick first animation
+      setAnimationName(names[0]);
     }
   }, [names]);
 
   useEffect(() => {
     if (!animationName || !actions[animationName]) return;
     const action = actions[animationName];
-
     if (isTalking) {
       action.reset().fadeIn(0.3).play();
     } else {
@@ -215,6 +313,7 @@ export default function AI_Avatar({
     };
   }, [enablePersonalization, canAvatarBeIdle, globalSpeechState.isAnySpeaking, handleIdleCheck, userInfo]);
 
+  
 
 
   return (
@@ -278,7 +377,11 @@ export default function AI_Avatar({
       <Canvas camera={{ position: [0, 1.2, 3.2], fov: 35 }}>
         <ambientLight intensity={0.6} />
         <directionalLight position={[2, 4, 2]} intensity={1.2} />
-        <TalkingModel isTalking={isTalking || isExternalSpeaking} />
+        <TalkingModel 
+          isTalking={isTalking || isExternalSpeaking}
+          expression={currentContext.emotionContext?.emotion?.toLowerCase() || 'neutral'} 
+        />
+
       </Canvas>
 
       {/* Avatar Status Overlay */}

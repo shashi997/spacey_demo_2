@@ -2,11 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Volume2, SkipForward } from 'lucide-react';
 import { useCoordinatedSpeechSynthesis, useSpeechCoordination } from '../../hooks/useSpeechCoordination.jsx';
+import KnowledgeCheck from './KnowledgeCheck.jsx';
 
-const NarrationBlock = ({ block, userTags, onNavigate, getDynamicText }) => {
+const NarrationBlock = ({ block, userTags, onNavigate, getDynamicText, onSubmit }) => {
   const { speak, cancel, isSpeaking, isSupported } = useCoordinatedSpeechSynthesis('lesson');
   const { setContextState, trackActivity } = useSpeechCoordination();
   const [speechComplete, setSpeechComplete] = useState(false);
+  const [aiMessage, setAiMessage] = useState(block.knowledge_check?.initial_message || ""); // Initialize with potential message
+  const [showContinue, setShowContinue] = useState(false); // State to control continue button
 
   // Combine all text content into a single string for the speech synthesizer
   const textToSpeak = [
@@ -43,6 +46,15 @@ const NarrationBlock = ({ block, userTags, onNavigate, getDynamicText }) => {
     }
   };
 
+  const handleSubmitAnswer = (answer, updateMessages, handleCorrectAnswer) => {
+    onSubmit(answer, block, updateMessages, handleCorrectAnswer); // Pass block info to the onSubmit
+  };
+
+  const handleCorrect = (afterSpeechCallback) => {
+    setShowContinue(true);
+    if (afterSpeechCallback) afterSpeechCallback();
+  }
+
   return (
     <div className="text-center animate-[fadeIn_0.5s_ease-in-out]">
       {isSpeaking && (
@@ -78,15 +90,24 @@ const NarrationBlock = ({ block, userTags, onNavigate, getDynamicText }) => {
         </div>
       )}
 
-      {block.next_block ? (
+      {speechComplete && block.knowledge_check?.enabled && !showContinue && (
+        <KnowledgeCheck
+          question={block.knowledge_check.question}
+          onSubmit={handleSubmitAnswer} // Use modified handler
+          initialMessage={aiMessage} // Pass the initial message
+          onCorrect={handleCorrect} // Pass the onCorrect handler
+        />
+      )}
+
+      {(showContinue || (speechComplete && !block.knowledge_check?.enabled)) && block.next_block ? (
         <button
           onClick={handleManualContinue}
           className="inline-flex items-center gap-3 px-6 py-3 mt-10 font-semibold text-white bg-cyan-600/80 rounded-full hover:bg-cyan-500 transition-colors focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black"
         >
           Continue
-          {isSpeaking && <SkipForward />} {/* Show skip icon while speaking */}
+          {isSpeaking && <SkipForward />}
         </button>
-      ) : (
+      ) : (showContinue || (speechComplete && !block.knowledge_check?.enabled)) &&(
         <Link
           to="/dashboard"
           className="inline-flex items-center gap-3 px-6 py-3 mt-10 font-semibold text-white bg-purple-600/80 rounded-full hover:bg-purple-500 transition-colors"

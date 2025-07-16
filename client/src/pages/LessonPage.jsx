@@ -19,6 +19,7 @@ import AiFeedback from '../components/lesson/AiFeedback';
 import LogPanel from '../components/lesson/LogPanel';
 import MediaDisplay from '../components/lesson/MediaDisplay';
 import LessonProgressIndicator from '../components/lesson/LessonProgressIndicator'; // Import LessonProgressIndicator
+import KnowledgeCheck from '../components/lesson/KnowledgeCheck'; // Import KnowledgeCheck component
 // Hooks
 import useAudio from '../hooks/useAudio';
 
@@ -58,6 +59,10 @@ const LessonPage = () => {
   const [backendAiMessage, setBackendAiMessage] = useState(null);
   const [analysisLog, setAnalysisLog] = useState([]);
   const [isLogOpen, setIsLogOpen] = useState(false);
+
+  const [knowledgeCheckAnswer, setKnowledgeCheckAnswer] = useState(null); // To store the answer
+  const [initialKnowledgeCheckMessage, setInitialKnowledgeCheckMessage] = useState("");
+  const [knowledgeCheckError, setKnowledgeCheckError] = useState("");
 
 
   useEffect(() => {
@@ -268,6 +273,46 @@ const LessonPage = () => {
   }, [userTags, lesson, currentBlock, handleNavigate, pendingNavigation, saveLessonProgress, currentMediaIndex, persistentUserTags, savePersistentUserTags]);
 
 
+  const handleKnowledgeCheckSubmit = useCallback((answer, block, updateMessages, handleCorrectAnswer) => {
+    setKnowledgeCheckAnswer(answer);
+    setKnowledgeCheckError(""); // Clear any previous error
+
+    // Send knowledge check data to the backend along with other interaction data
+    const payload = {
+      lessonData: lesson, // Include relevant lesson data
+      currentBlock: block, // The current block with the knowledge check
+      userResponse: { knowledge_check_answer: answer }, // Include the answer
+      userTags: userTags, // Current user tags
+      // You may need to include other relevant data here,
+      // such as a 'type' field to indicate this is a knowledge check submission.
+      type: "knowledge_check",
+    };
+
+    analyzeInteraction(payload)
+      .then(result => {
+        console.log("Knowledge check evaluation result:", result);
+        if (result.is_correct) { // Assuming your backend returns an 'isCorrect' flag
+          // console.log("Knowledge check passed: need to navigate", result);
+          
+          const afterSpeechCallback = () => handleNavigate(block.next_block);
+          handleCorrectAnswer(result.ai_message, afterSpeechCallback); // Call to update UI and potentially navigate after speech
+        } else {
+          // Display feedback within the chat interface
+          // console.log("display feedback in chat", result);
+          
+          updateMessages(result.ai_message);
+        }
+        setKnowledgeCheckAnswer(null); // Clear answer after submission
+      })
+      .catch(error => {
+        console.error("Error during knowledge check evaluation:", error);
+        setKnowledgeCheckError("An error occurred during evaluation.");
+        // Handle network errors or other issues
+        setKnowledgeCheckAnswer(null); // Clear answer after submission
+      })
+  }, [handleNavigate, lessonId, lesson, userId, userTags]);
+
+
   // When lesson is completed (e.g. in Debrief block or similar)
   const markLessonAsComplete = useCallback(() => {
     saveLessonProgress(currentBlockId, userTags, true); // Mark as completed.
@@ -342,12 +387,47 @@ const LessonPage = () => {
             if (augmentedBlock.block_id === "Debrief") {
               markLessonAsComplete();
             }
+            if (augmentedBlock.knowledge_check?.enabled) {
+              return (
+              <NarrationBlock
+                block={augmentedBlock}
+                onNavigate={handleNavigate}
+                getDynamicText={getDynamicText}
+                userTags={userTags}
+                onSubmit={handleKnowledgeCheckSubmit} // Pass onSubmit handler
+              />
+              );
+            }
             return <NarrationBlock block={augmentedBlock} onNavigate={handleNavigate} getDynamicText={getDynamicText} userTags={userTags} />;
           case 'choice':
+            if (currentBlock.knowledge_check?.enabled) {
+              return (
+                <KnowledgeCheck
+                  question={currentBlock.knowledge_check.question}
+                  onSubmit={(answer, updateMessages, handleCorrectAnswer) => handleKnowledgeCheckSubmit(answer, currentBlock, updateMessages, handleCorrectAnswer)}
+                />
+              );
+            }
             return <ChoiceBlock block={currentBlock} onChoice={handleChoice} />;
           case 'reflection':
+            if (currentBlock.knowledge_check?.enabled) {
+              return (
+                <KnowledgeCheck
+                  question={currentBlock.knowledge_check.question}
+                  onSubmit={(answer, updateMessages, handleCorrectAnswer) => handleKnowledgeCheckSubmit(answer, currentBlock, updateMessages, handleCorrectAnswer)}
+                />
+              );
+            }
             return <ReflectionBlock block={augmentedBlock} onNavigate={handleNavigate} getDynamicText={getDynamicText} />;
           case 'quiz':
+            if (currentBlock.knowledge_check?.enabled) {
+              return (
+                <KnowledgeCheck
+                  question={currentBlock.knowledge_check.question}
+                  onSubmit={(answer, updateMessages, handleCorrectAnswer) => handleKnowledgeCheckSubmit(answer, currentBlock, updateMessages, handleCorrectAnswer)}
+                />
+              );
+            }
             return <QuizBlock block={augmentedBlock} onComplete={() => handleNavigate(augmentedBlock.next_block)} />;
           default:
             return <p>Unsupported block type: {currentBlock.type}</p>;

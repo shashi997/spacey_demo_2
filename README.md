@@ -153,3 +153,19 @@ MIT (or your chosen license)
 - Built by the Spacey team
 - 3D assets, images, and sounds from open/free sources (see `/client/public`)
 - Powered by open-source and cloud AI
+
+---
+
+## 🖼️ Visual System Overview
+
+### 1. Voice Interaction Flow
+![Voice Interaction Flow](client/public/images/readme_diagram_1.png)
+
+### 2. AI Prompt & Socratic Tutor Engine
+![AI Prompt Engine](client/public/images/readme_diagram_2.png)
+
+### 3. System Architecture
+![System Architecture](client/public/images/readme_diagram_3.png)
+
+### 4. Personalized Learning Loop
+![Personalized Learning Loop](client/public/images/readme_diagram_4.png)

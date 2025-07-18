@@ -48,7 +48,7 @@ const HomePage = () => {
 
         {/* Right side: 3D Avatar Canvas */}
         <div className="w-full md:w-1/2 lg:w-3/5 h-1/2 md:h-full">
-          <Canvas camera={{ position: [0, 0, 5], fov: 55 }}>
+          <Canvas camera={{ position: [0, 2, 5], fov: 55 }}>
             <ambientLight intensity={0.5} />
             <directionalLight position={[10, 10, 5]} intensity={1.5} />
             <pointLight position={[-10, -10, -10]} intensity={1} />

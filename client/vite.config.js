@@ -20,5 +20,10 @@ export default defineConfig({
       'path': false,
       'os': false,
     }
-  }
+  },
+  server: {
+    proxy: {
+      '/api': 'http://localhost:5000',
+    },
+  },
 })

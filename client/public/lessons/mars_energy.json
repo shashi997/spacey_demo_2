@@ -33,7 +33,7 @@
                 {
                     "text": "Check internal systems",
                     "next_block": "Circuit Burn",
-                    "tag": "active",
+                    "tag": "bold",
                     "ai_reaction": "Player chose to investigate internal systems first."
                 }
             ],
@@ -56,7 +56,7 @@
                 {
                     "text": "Wait to see if flare ends",
                     "next_block": "AI Decision Conflict",
-                    "tag": "passive",
+                    "tag": "cautious",
                     "ai_reaction": "Player chose to observe before acting."
                 }
             ],
@@ -73,13 +73,13 @@
                 {
                     "text": "Divert coolant from hydroponics",
                     "next_block": "AI Decision Conflict",
-                    "tag": "risk",
+                    "tag": "bold",
                     "ai_reaction": "Player chose to risk one system to save another."
                 },
                 {
                     "text": "Send maintenance bot manually",
                     "next_block": "AI Decision Conflict",
-                    "tag": "safe",
+                    "tag": "cautious",
                     "ai_reaction": "Player chose a direct, less risky approach."
                 }
             ],
@@ -93,13 +93,13 @@
               {
                 "text": "Override the AI",
                 "next_block": "Complication",
-                "tag": "assertive",
+                "tag": "bold",
                 "ai_reaction": "Player asserted their authority over the AI."
               },
               {
                 "text": "Let AI lead response",
                 "next_block": "Complication",
-                "tag": "collaborative",
+                "tag": "cautious",
                 "ai_reaction": "Player chose to trust the AI's judgment."
               }
             ],
@@ -116,13 +116,13 @@
               {
                 "text": "Reroute energy manually",
                 "next_block": "AI Reaction",
-                "tag": "active",
+                "tag": "bold",
                 "ai_reaction": "Player took direct manual control."
               },
               {
                 "text": "Wake human backup crew early",
                 "next_block": "AI Reaction",
-                "tag": "collaborative",
+                "tag": "creative",
                 "ai_reaction": "Player sought human assistance."
               }
             ],
@@ -134,12 +134,12 @@
           "content": "Spacey responds to your pattern so far:",
           "dynamic_content": [
             {
-              "condition_tags": ["bold", "assertive", "active", "risk"],
+              "condition_tags": ["bold", "creative"],
               "text": "You tend to take bold risks under pressure.",
               "llm_instruction": "Based on the student's decisions, elaborate on how their bold and risk-taking approach has manifested in the mission. Link it to specific choices if possible. Then, transition to the 'Last Major Decision' block."
             },
             {
-              "condition_tags": ["cautious", "passive", "safe", "collaborative"],
+              "condition_tags": ["cautious"],
               "text": "You rely on systems not intuition.",
               "llm_instruction": "Based on the student's decisions, elaborate on how their cautious and systems-oriented thinking has been evident. Link it to specific choices if possible. Then, transition to the 'Last Major Decision' block."
             }
@@ -157,19 +157,19 @@
             {
               "text": "Life support",
               "next_block": "Unexpected Outcome",
-              "tag": "safe",
+              "tag": "cautious",
               "ai_reaction": "Player prioritised basic survival."
             },
             {
               "text": "Research labs",
               "next_block": "Unexpected Outcome",
-              "tag": "mission_continuity",
+              "tag": "creative",
               "ai_reaction": "Player prioritised long-term mission goals."
             },
             {
               "text": "Communications",
               "next_block": "Unexpected Outcome",
-              "tag": "external_help",
+              "tag": "bold",
               "ai_reaction": "Player prioritised seeking outside assistance."
             }
           ],

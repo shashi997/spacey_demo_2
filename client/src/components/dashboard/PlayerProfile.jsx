@@ -24,38 +24,9 @@ const StarryBg = () => (
   </svg>
 );
 
-const PlayerProfile = ({ userId }) => {
-  const [traits, setTraits] = useState({});
-  const [missions, setMissions] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!userId) return;
-    setLoading(true);
-    const fetchData = async () => {
-      try {
-        const [traitsRes, missionsRes] = await Promise.all([
-          axios.get(`/api/chat/profile/traits/${userId}`),
-          axios.get(`/api/chat/profile/missions/${userId}`),
-        ]);
-        setTraits(traitsRes.data.traits || {});
-        setMissions(missionsRes.data.missions || []);
-      } catch (err) {
-        setTraits({});
-        setMissions([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [userId]);
-
-  // Sort missions by date desc
-  const sortedMissions = [...missions].sort((a, b) => (b.completed_at || '').localeCompare(a.completed_at || ''));
-  // For progress dots (show up to 5)
+const PlayerProfile = ({ userId, traits = {}, missions = [], loading = false }) => {
+  // Count completed missions
   const completedCount = missions.filter(m => m.completed_at).length;
-  const progressDots = Array(5).fill(0).map((_, i) => i < completedCount);
-
   return (
     <div className="w-full max-w-md mx-auto rounded-2xl shadow-2xl border border-blue-200/30 p-5 text-white relative overflow-hidden bg-gradient-to-br from-[#23283a] to-[#181c24]" style={{minHeight:'350px'}}>
       <StarryBg />
@@ -76,19 +47,11 @@ const PlayerProfile = ({ userId }) => {
               <div style={{ width: 0, height: 0, borderLeft: '10px solid transparent', borderRight: '10px solid transparent', borderTop: '12px solid #23283a' }} className="mx-auto -mt-1"></div>
             </div>
           </div>
-          {/* Mission History */}
+          {/* Mission History Placeholder */}
           <div className="w-full mt-10">
             <h3 className="text-base font-bold mb-1 tracking-wide text-blue-200">MISSION HISTORY</h3>
             <div className="space-y-2">
-              {sortedMissions.slice(0, 2).map(m => (
-                <div key={m.mission_id} className="bg-[#23283a] rounded-xl px-3 py-2 flex flex-col border border-blue-200/20 shadow-md">
-                  <span className="font-semibold text-sm text-white tracking-wide">{m.mission_id.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
-                  <span className="text-xs text-blue-200 mt-1 font-mono">{m.completed_at ? new Date(m.completed_at).toLocaleDateString() : ''}</span>
-                </div>
-              ))}
-              {sortedMissions.length === 0 && (
-                <div className="text-xs text-gray-400">No missions completed yet.</div>
-              )}
+              <div className="text-xs text-gray-400">No missions completed yet.</div>
             </div>
           </div>
         </div>
@@ -122,10 +85,10 @@ const PlayerProfile = ({ userId }) => {
           <Rocket size={28} className="text-blue-500" />
         </span>
         <div className="flex gap-2 mb-1">
-          {progressDots.map((filled, i) => (
+          {[...Array(5)].map((_, i) => (
             <span
               key={i}
-              className={`w-5 h-5 rounded-full border-2 ${filled ? 'bg-blue-400 border-blue-400 shadow-lg' : 'bg-gray-800 border-gray-600'} transition-all`}
+              className={`w-5 h-5 rounded-full border-2 ${i < completedCount ? 'bg-blue-400 border-blue-400 shadow-lg' : 'bg-gray-800 border-gray-600'} transition-all`}
             ></span>
           ))}
         </div>

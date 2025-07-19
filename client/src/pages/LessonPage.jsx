@@ -5,7 +5,7 @@ import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Loader, AlertTriangle, RefreshCw, BookOpen } from 'lucide-react';
 
 // API Service
-import { analyzeInteraction } from '../api/lesson_api';
+import { analyzeInteraction, saveChoice, saveFinalSummary } from '../api/lesson_api';
 
 // Components
 import Navbar from '../components/ui/Navbar';
@@ -149,7 +149,7 @@ const LessonPage = () => {
 
   const saveLessonProgress = async (blockId, tags, mediaIndex = 0, completed = false) => {
     if (!userId || !lessonId || blockId === null || blockId === undefined) {
-      console.warn("Attempted to save lesson progress with invalid blockId:", blockId);
+      console.warn("[saveLessonProgress] Not saving progress: blockId is null or undefined", { userId, lessonId, blockId, tags });
       return; // Ensure user, lesson, and blockId are valid
     }
 
@@ -231,19 +231,20 @@ const LessonPage = () => {
           userTags: optimisticTags,
         };
         const response = await analyzeInteraction(payload);
-        
         setLastAnalysis(response);
         setBackendAiMessage(response.ai_message);
-        
         if (response.ai_message && !response.error) {
           setAnalysisLog(prevLog => [...prevLog, response.ai_message]);
         }
-
         if (response.added_traits || response.removed_traits) {
             setUserTags(prevTags => {
                 const withAdded = [...new Set([...prevTags, ...(response.added_traits || [])])];
                 const withRemoved = withAdded.filter(t => !(response.removed_traits || []).includes(t));
-                saveLessonProgress(currentBlock.next_block || pendingNavigation, withRemoved, currentMediaIndex); // Save with updated tags
+                if (currentBlock.next_block || pendingNavigation) {
+                  saveLessonProgress(currentBlock.next_block || pendingNavigation, withRemoved, currentMediaIndex);
+                } else {
+                  console.warn('[handleChoice] Not saving progress: next_block is null', { currentBlock, pendingNavigation });
+                }
                 // Update persistent traits
                 const updatedPersistentTags = [...new Set([...persistentUserTags, ...withAdded])].filter(t => !response.removed_traits?.includes(t));
                 savePersistentUserTags(updatedPersistentTags);
@@ -252,26 +253,53 @@ const LessonPage = () => {
             });
         }
         else {
-          saveLessonProgress(currentBlock.next_block || pendingNavigation, userTags, currentMediaIndex);  // Save even if no tag changes
+          if (currentBlock.next_block || pendingNavigation) {
+            saveLessonProgress(currentBlock.next_block || pendingNavigation, userTags, currentMediaIndex);
+          } else {
+            console.warn('[handleChoice] Not saving progress: next_block is null', { currentBlock, pendingNavigation });
+          }
         }
-        
+        // --- NEW: Save choice to backend for trait tracking ---
+        if (userId && lesson && currentBlock && currentBlock.block_id) {
+          await saveChoice({
+            userId,
+            missionId: lesson.mission_id,
+            blockId: currentBlock.block_id,
+            choiceText: choice.text,
+            tag: tag || null,
+          });
+        } else {
+          console.warn('[handleChoice] Not saving choice: missing userId, lesson, or currentBlock.block_id', { userId, lesson, currentBlock });
+        }
+        // --- END NEW ---
         setPageState('feedback');
       } catch (err) {
         console.error("Failed to analyze interaction:", err);
         handleNavigate(next_block);
         setPageState('idle');
-        saveLessonProgress(next_block, userTags); // Save progress even on failure
+        if (next_block) {
+          saveLessonProgress(next_block, userTags);
+        } else {
+          console.warn('[handleChoice] Not saving progress on error: next_block is null', { next_block });
+        }
       }
     };
-
     runAnalysis();
-  }, [userTags, lesson, currentBlock, handleNavigate, pendingNavigation, saveLessonProgress, currentMediaIndex, persistentUserTags, savePersistentUserTags]);
-
+  }, [userTags, lesson, currentBlock, handleNavigate, pendingNavigation, saveLessonProgress, currentMediaIndex, persistentUserTags, savePersistentUserTags, userId]);
 
   // When lesson is completed (e.g. in Debrief block or similar)
   const markLessonAsComplete = useCallback(() => {
     saveLessonProgress(currentBlockId, userTags, true); // Mark as completed.
-  }, [currentBlockId, userTags, saveLessonProgress]); // Added saveLessonProgress
+    // --- NEW: Save final summary to backend for mission completion ---
+    if (userId && lesson) {
+      saveFinalSummary({
+        userId,
+        missionId: lesson.mission_id,
+        summary: 'Mission completed', // You can pass a more detailed summary if available
+      });
+    }
+    // --- END NEW ---
+  }, [currentBlockId, userTags, saveLessonProgress, userId, lesson]);
 
 
   const handleFeedbackComplete = useCallback(() => {

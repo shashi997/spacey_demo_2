@@ -541,6 +541,13 @@ class PersistentMemoryManager {
 
   // === PLAYER PROGRESS & TRAITS API ===
   async saveChoice(userId, missionId, blockId, choiceText, tag) {
+    // Map all tags to only 'cautious', 'bold', or 'creative'
+    const tagMap = {
+      cautious: 'cautious', safe: 'cautious', passive: 'cautious', collaborative: 'cautious',
+      bold: 'bold', risk: 'bold', active: 'bold', assertive: 'bold', mission_continuity: 'bold', external_help: 'bold',
+      creative: 'creative'
+    };
+    const mappedTag = tagMap[tag] || (tag === 'creative' ? 'creative' : (tag ? 'creative' : null));
     const profile = await this.getUserProfile(userId);
     // Find or create mission entry
     let mission = profile.missions_completed.find(m => m.mission_id === missionId);
@@ -553,12 +560,12 @@ class PersistentMemoryManager {
       };
       profile.missions_completed.push(mission);
     }
-    // Add choice
+    // Add choice (store original tag for history, but increment only mapped trait)
     mission.choices.push({ block_id: blockId, choice: choiceText, tag });
     // Update trait count
-    if (tag) {
-      if (!profile.traits[tag]) profile.traits[tag] = 0;
-      profile.traits[tag] += 1;
+    if (mappedTag) {
+      if (!profile.traits[mappedTag]) profile.traits[mappedTag] = 0;
+      profile.traits[mappedTag] += 1;
     }
     await this.saveUserProfile(userId, profile);
     return mission;

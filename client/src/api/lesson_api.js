@@ -39,3 +39,43 @@ export const analyzeInteraction = async (payload) => {
     };
   }
 };
+
+/**
+ * Save a user's choice in a lesson block (for trait tracking and progress).
+ * @param {object} params - { userId, missionId, blockId, choiceText, tag }
+ * @returns {Promise<object>} Backend response
+ */
+export const saveChoice = async ({ userId, missionId, blockId, choiceText, tag }) => {
+  try {
+    const response = await axios.post(`${API_BASE_URL}/api/chat/profile/saveChoice`, {
+      userId,
+      missionId,
+      blockId,
+      choiceText,
+      tag,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error saving choice:', error.response ? error.response.data : error.message);
+    return { error: true };
+  }
+};
+
+/**
+ * Save the final summary for a completed mission (for mission history).
+ * @param {object} params - { userId, missionId, summary }
+ * @returns {Promise<object>} Backend response
+ */
+export const saveFinalSummary = async ({ userId, missionId, summary }) => {
+  try {
+    const response = await axios.post(`${API_BASE_URL}/api/chat/profile/saveFinalSummary`, {
+      userId,
+      missionId,
+      summary,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error saving final summary:', error.response ? error.response.data : error.message);
+    return { error: true };
+  }
+};

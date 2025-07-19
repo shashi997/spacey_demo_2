@@ -6,43 +6,36 @@ import { useAuthContext } from '../components/layout/AuthLayout';
 import { db } from '../firebaseConfig';
 import { collection, query, where, getDocs, documentId } from 'firebase/firestore';
 import PlayerProfile from '../components/dashboard/PlayerProfile';
+import axios from 'axios';
 
 const UserDashboardPage = () => {
   const { currentUser, userData } = useAuthContext();
-  const [lessonProgress, setLessonProgress] = useState([]);
-  const [userTraits, setUserTraits] = useState([]); // New state for user traits
+  const [traits, setTraits] = useState({});
+  const [missions, setMissions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
 
   useEffect(() => {
-    const fetchLessonProgress = async () => {
+    const fetchTraitsAndMissions = async () => {
       if (currentUser) {
         try {
-          const progressRef = collection(db, "lesson_progress");
-          const q = query(
-            progressRef,
-            where(documentId(), ">=", `${currentUser.uid}_`),
-            where(documentId(), "<=", `${currentUser.uid}_\uf8ff`)
-          );
-          const querySnapshot = await getDocs(q);
-          const progressData = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-          }));
-          setLessonProgress(progressData);
-
-          // Aggregate user traits from all lessons
-          const allTraits = progressData.reduce((acc, curr) => {
-            return [...acc, ...(curr.userTags || [])];
-          }, []);
-          // Remove duplicates (if any) using Set
-          setUserTraits([...new Set(allTraits)]);
-
+          console.log('Fetching traits for', currentUser.uid);
+          const traitsRes = await axios.get(`/api/chat/profile/traits/${currentUser.uid}`);
+          setTraits(traitsRes.data.traits || {});
+          const missionsRes = await axios.get(`/api/chat/profile/missions/${currentUser.uid}`);
+          setMissions(missionsRes.data.missions || []);
+          setFetchError(null);
         } catch (error) {
-          console.error("Error fetching lesson progress:", error);
+          setTraits({});
+          setMissions([]);
+          setFetchError(error.message || 'Failed to fetch traits or missions');
+          console.error('Error fetching traits or missions:', error);
+        } finally {
+          setLoading(false);
         }
       }
     };
-
-    fetchLessonProgress();
+    fetchTraitsAndMissions();
   }, [currentUser]);
 
   if (!currentUser) {
@@ -65,8 +58,12 @@ const UserDashboardPage = () => {
 
           {/* Player Profile Card */}
           <div className="flex justify-center my-6 sm:my-8">
-            <PlayerProfile userId={currentUser.uid} />
+            <PlayerProfile userId={currentUser.uid} traits={traits} missions={missions} loading={loading} />
           </div>
+
+          {fetchError && (
+            <div className="text-red-400 font-mono text-sm">Error loading traits: {fetchError}</div>
+          )}
 
           {/* Optionally, keep other info below */}
           <div className="space-y-2 sm:space-y-4 text-left">

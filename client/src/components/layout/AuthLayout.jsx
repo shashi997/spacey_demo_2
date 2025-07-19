@@ -1,6 +1,6 @@
 // src/components/layout/AuthLayout.jsx
 
-import React, { createContext, useContext } from 'react'; // Import createContext and useContext
+import React, { createContext, useContext, useEffect, useState } from 'react'; // Import createContext and useContext
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -19,10 +19,35 @@ export const useAuthContext = () => {
 
 const AuthLayout = () => {
   // Get both currentUser and userData from the enhanced useAuth hook
-  const { currentUser, userData, loading } = useAuth();
+  const { currentUser: firebaseUser, userData: firebaseUserData, loading } = useAuth();
+  const [currentUser, setCurrentUser] = useState(null);
+  const [userData, setUserData] = useState(null);
+  const [isDataLoading, setIsDataLoading] = useState(true);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('currentUser');
+    const storedUserData = localStorage.getItem('userData');
+
+    if (storedUser && storedUserData) {
+      setCurrentUser(JSON.parse(storedUser));
+      setUserData(JSON.parse(storedUserData));
+      setIsDataLoading(false);
+    } else {
+      setIsDataLoading(loading);
+      if (!loading) {
+        setCurrentUser(firebaseUser);
+        setUserData(firebaseUserData);
+
+        if (firebaseUser && firebaseUserData) {
+          localStorage.setItem('currentUser', JSON.stringify(firebaseUser));
+          localStorage.setItem('userData', JSON.stringify(firebaseUserData));
+        }
+      }
+    }
+  }, [firebaseUser, firebaseUserData, loading]);
 
   // While Firebase is checking the authentication state or fetching user data, show a loading indicator.
-  if (loading) {
+  if (isDataLoading) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-[#090a0f]">
         <p className="text-white text-xl">Loading session...</p>

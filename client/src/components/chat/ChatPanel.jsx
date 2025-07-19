@@ -45,45 +45,76 @@ const ChatPanel = ({ isOpen, onClose, chatHistory, onSendMessage }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose}></div>
-      <div className="relative w-full max-w-md bg-gray-900 rounded-lg shadow-lg overflow-hidden"> 
-        {/* Header with a subtle gradient */}
-        <div className="flex items-center justify-between bg-gradient-to-r from-gray-800 to-gray-700 py-3 px-4 border-b border-gray-700">
-          <h2 className="text-white font-semibold flex items-center">
-            <MessageSquare className="mr-2" size={18} />
-            Chat</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white">
-            &times;
+      <div className="absolute inset-0 bg-black/25 backdrop-blur-sm" onClick={onClose}></div>
+      <div className="relative w-full max-w-md rounded-2xl shadow-2xl overflow-hidden bg-gray-900/75 border border-gray-700">
+        {/* Fancy Header */}
+           <div className="flex items-center justify-between py-4 px-5 bg-gradient-to-r from-blue-600 to-indigo-700/75 border-b border-gray-700">
+          <h2 className="text-2xl font-bold text-white flex items-center">
+             <MessageSquare className="mr-2" size={24} />
+            Spacey Chat
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-300 cursor-pointer hover:text-white focus:outline-none"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
           </button>
         </div>
 
-        <div className="h-80 overflow-y-auto p-4">
+        {/* Message Area with added effects */}
+        <div className="h-96 overflow-y-auto p-5">
           {chatHistory.map((message, index) => (
-            <div key={index} className={`mb-2 ${message.sender === 'user' ? 'text-right' : ''}`}>
-              <div className={`inline-block p-2 rounded-lg ${message.sender === 'user' ? 'bg-blue-500 text-white' : 'bg-gray-700 text-gray-200'} 
-                              ${message.sender === 'user' ? 'rounded-br-none' : 'rounded-bl-none'} transition-colors duration-200`}>
-                {message.content}
+            <div
+              key={index}
+              className={`mb-4 flex ${message.sender === 'user' ? 'justify-end' : ''}`}
+            >
+              <div
+                className={`max-w-xs py-2 px-3 rounded-lg ${
+                  message.sender === 'user'
+                    ? 'bg-blue-500 text-white rounded-br-none'
+                    : 'bg-gray-700 text-gray-200 rounded-bl-none'
+                } shadow-md`}
+              >
+                <p className="text-sm">{message.content}</p>
               </div>
             </div>
           ))}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input area with a slightly different background */}
-        <div className="p-4 bg-gray-800 border-t border-gray-700">
-          <div className="flex rounded-lg overflow-hidden">
+        {/* Enhanced Input Area */}
+        <div className="p-5 bg-gray-800 border-t border-gray-700">
+          <div className="flex rounded-lg overflow-hidden shadow-inner">
             <textarea
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Type your message..."
-              className="flex-grow h-10 p-2 bg-gray-700 text-white rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="flex-grow h-12 p-3 bg-gray-700 text-white rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              style={{
+                scrollbarWidth: 'thin',
+                scrollbarColor: '#4f46e5 #2d3748',
+              }}
             />
             <button
               onClick={handleSendMessage}
-              className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-r-lg focus:outline-none focus:shadow-outline flex items-center"
+              className="bg-gradient-to-r cursor-pointer from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-2 px-4 rounded-r-lg focus:outline-none focus:shadow-outline flex items-center"
             >
-              <Send size={18} /> {/* Icon for send button */}
+              <Send size={20} className="mr-2" /> {/* Slightly larger icon */}
+              Send
             </button>
           </div>
         </div>

@@ -42,7 +42,6 @@ const AIChat = ({ onDebugDataUpdate, onAiSpeakingChange }) => {
     }
   });
 
-  // Unified conversation management
   const { 
     handleUserChat, 
     conversationHistory, 
@@ -51,7 +50,6 @@ const AIChat = ({ onDebugDataUpdate, onAiSpeakingChange }) => {
 
   const { setContextState, trackActivity } = useSpeechCoordination();
 
-  // Convert conversation history to chat messages format
   const messages = conversationHistory
     .filter(entry => entry.type === 'user' || entry.type === 'spacey')
     .map(entry => ({
@@ -60,7 +58,6 @@ const AIChat = ({ onDebugDataUpdate, onAiSpeakingChange }) => {
       timestamp: entry.timestamp
     }));
 
-  // Add initial greeting if no messages
   if (messages.length === 0) {
     messages.unshift({
       sender: 'ai',
@@ -69,33 +66,29 @@ const AIChat = ({ onDebugDataUpdate, onAiSpeakingChange }) => {
     });
   }
 
-  // Function to check if user is scrolled to bottom
   const isScrolledToBottom = () => {
     if (!chatContainerRef.current) return true;
     const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
-    const threshold = 5; // Allow 5px threshold for "close enough"
+    const threshold = 5; 
     return scrollHeight - scrollTop - clientHeight <= threshold;
   };
 
-  // Handle scroll events to track user's scroll position
   const handleScroll = () => {
     setIsUserScrolledUp(!isScrolledToBottom());
   };
 
   useEffect(() => {
     if (onAiSpeakingChange) {
-      onAiSpeakingChange(isAiResponding); // Use processing state instead of speech state
+      onAiSpeakingChange(isAiResponding); 
     }
   }, [isAiResponding, onAiSpeakingChange]);
 
-  // Smart auto-scroll: only auto-scroll if user is at bottom or if it's a new user message
   useEffect(() => {
     if (chatContainerRef.current && !isUserScrolledUp) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, [messages, isUserScrolledUp]);
 
-  // Auto-scroll when user sends a message (always scroll for user's own messages)
   useEffect(() => {
     if (messages.length > 0 && messages[messages.length - 1].sender === 'user') {
       setIsUserScrolledUp(false);
@@ -111,15 +104,12 @@ const AIChat = ({ onDebugDataUpdate, onAiSpeakingChange }) => {
     }
   }, [isListening, transcript]);
 
-  // Clear chat context when no longer actively chatting
   useEffect(() => {
     let chatTimeout;
 
-    if (isAiResponding) {
-      // If AI is responding, keep chat context active
+    if (isAiResponding || (conversationHistory.length > 0 && conversationHistory.at(-1)?.type === 'user')) {
       setContextState('isInChat', true);
     } else {
-      // Clear chat context after 10 seconds of inactivity
       chatTimeout = setTimeout(() => {
         setContextState('isInChat', false);
       }, 10000);
@@ -128,18 +118,22 @@ const AIChat = ({ onDebugDataUpdate, onAiSpeakingChange }) => {
     return () => {
       if (chatTimeout) clearTimeout(chatTimeout);
     };
-  }, [isAiResponding, setContextState]);
+  }, [isAiResponding, conversationHistory, setContextState]);
 
   const handleSendMessage = async (text) => {
     const trimmedText = text.trim();
     if (!trimmedText || isAiResponding) return;
 
-    // Track activity and set chat context
     trackActivity();
     setInputText('');
 
     try {
-      // Use conversation manager for unified chat handling
+      // This is the key function call.
+      // We assume `handleUserChat` has been updated in the useConversationManager hook
+      // to perform two actions:
+      // 1. Get the AI's text response and update the conversation history.
+      // 2. Call the `speak` function from the `useCoordinatedSpeechSynthesis` hook with the response,
+      //    which triggers the talking animation in the AI_Avatar component.
       const response = await handleUserChat(trimmedText, currentUser);
 
       if (response && onDebugDataUpdate) {
@@ -155,7 +149,6 @@ const AIChat = ({ onDebugDataUpdate, onAiSpeakingChange }) => {
       }
     } catch (err) {
       console.error('Chat error:', err);
-      // Conversation manager handles fallback responses
     }
   };
 
@@ -180,30 +173,31 @@ const AIChat = ({ onDebugDataUpdate, onAiSpeakingChange }) => {
         onScroll={handleScroll}
       >
         {messages.map((msg, i) => (
-          <ChatMessage key={i} sender={msg.sender} text={msg.text} />
+          <ChatMessage key={`${msg.timestamp}-${i}`} sender={msg.sender} text={msg.text} />
         ))}
       </div>
       <form onSubmit={handleSubmit} className="p-4 border-t border-white/10 bg-black/20">
         <div className="flex items-center gap-2">
           <input
             type="text"
-            value={inputText}
+            value={isListening ? transcript : inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder="Ask me anything..."
+            placeholder={isListening ? "Listening..." : "Ask me anything..."}
             className="flex-1 px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white"
+            disabled={isListening}
           />
           {speechSupported && (
             <button
               type="button"
               onClick={toggleListening}
               className={`p-3 rounded-lg border ${
-                isListening ? 'bg-red-600' : 'bg-gray-600'
-              } text-white`}
+                isListening ? 'bg-red-600 border-red-500 animate-pulse' : 'bg-gray-600 border-gray-500'
+              } text-white transition-colors`}
             >
               {isListening ? <MicOff size={18} /> : <Mic size={18} />}
             </button>
           )}
-          <button type="submit" className="p-3 bg-cyan-600 text-white rounded-lg">
+          <button type="submit" className="p-3 bg-cyan-600 text-white rounded-lg hover:bg-cyan-500 transition-colors">
             <Send size={18} />
           </button>
         </div>

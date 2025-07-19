@@ -24,7 +24,7 @@ export const SpeechCoordinationProvider = ({ children }) => {
   });
 
   const activityTimeoutRef = useRef(null);
-  const idleThreshold = 2 * 60 * 1000; // 2 minutes of no activity = idle
+  const idleThreshold = 1 * 60 * 1000; // 1 minutes of no activity = idle
 
   // Track user activity
   const trackActivity = useCallback(() => {

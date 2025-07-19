@@ -24,7 +24,7 @@ const HomePage = () => {
       <main className="relative z-10 flex flex-col md:flex-row items-center justify-center w-full h-full px-6 md:px-12 lg:px-20">
         
         {/* Left side: Text content */}
-        <div className="md:w-1/2 lg:w-2/5 text-center md:text-left animate-[fadeIn_1.5s_ease-in-out]">
+        <div className="md:w-1/2 lg:w-2/5 text-center md:text-left animate-[fadeIn_2.5s_ease-in-out]">
           <h1 className="text-4xl md:text-6xl font-bold mb-4">
             🚀 <span className='text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400'>Welcome to AI Space Learning!</span>
           </h1>
@@ -37,7 +37,7 @@ const HomePage = () => {
             {!loading && currentUser && (
               <button
                 onClick={() => navigate('/dashboard')}
-                className="inline-flex items-center gap-3 px-8 py-3 font-semibold text-lg text-black bg-white rounded-full hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black animate-[fadeIn_1s_ease-in-out_1s_forwards] opacity-0"
+                className="inline-flex cursor-pointer items-center gap-3 px-8 py-3 font-semibold text-lg text-black bg-white rounded-full hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black animate-[fadeIn_1s_ease-in-out_1s_forwards] opacity-0"
               >
                 <Rocket size={22} />
                 <span>Go to Dashboard</span>

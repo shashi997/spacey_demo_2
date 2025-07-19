@@ -29,6 +29,9 @@ const handleLessonInteraction = async (req, res) => {
       userTags
     );
 
+      console.log('Trait analysis results:', analysis);
+
+    // 4. SECOND LLM CALL: Prepare context and generate the conversational response.
     const conversationalContext = {
       lessonData,
       currentBlock,
@@ -39,7 +42,7 @@ const handleLessonInteraction = async (req, res) => {
 
     const conversationalMessage = await generateConversationalResponse(conversationalContext);
 
-    // 4. Format a clear response for the frontend
+ // 5. Construct the final payload for the frontend based on the interaction type.
     // The frontend's `ReflectionBlock` is expecting a field named `ai_message`.
     // The `reasoning` from our analysis is the perfect content for it.
     const responsePayload = {
@@ -47,12 +50,13 @@ const handleLessonInteraction = async (req, res) => {
       added_traits: analysis.traits_to_add,
       removed_traits: analysis.traits_to_remove,
       analysis_method: analysis.method,
-      confidence: analysis.confidence
+      confidence: analysis.confidence,
+      reasoning: analysis.reasoning,
     };
 
     console.log('Sending analysis to frontend:', responsePayload);
     
-    // 5. Send the response
+    // 6. Send the successful response
     res.status(200).json(responsePayload);
 
   } catch (error) {

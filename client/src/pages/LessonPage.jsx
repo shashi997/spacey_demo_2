@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Loader, AlertTriangle, RefreshCw, BookOpen } from 'lucide-react';
+import { ArrowLeft, Loader, AlertTriangle, RefreshCw, BookOpen, MessageSquare } from 'lucide-react';
 
 // API Service
 import { analyzeInteraction } from '../api/lesson_api';
@@ -19,6 +19,8 @@ import AiFeedback from '../components/lesson/AiFeedback';
 import LogPanel from '../components/lesson/LogPanel';
 import MediaDisplay from '../components/lesson/MediaDisplay';
 import LessonProgressIndicator from '../components/lesson/LessonProgressIndicator'; // Import LessonProgressIndicator
+import ChatPanel from '../components/chat/ChatPanel';
+
 // Hooks
 import useAudio from '../hooks/useAudio';
 
@@ -59,6 +61,9 @@ const LessonPage = () => {
   const [analysisLog, setAnalysisLog] = useState([]);
   const [isLogOpen, setIsLogOpen] = useState(false);
 
+  // --- CHAT STATE ---
+  const [chatHistory, setChatHistory] = useState([]);
+  const [isChatOpen, setIsChatOpen] = useState(false); // Control ChatPanel visibility
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -93,6 +98,7 @@ const LessonPage = () => {
         setLesson(data);
         setCurrentBlockId(data.blocks[0].block_id);
         setUserTags([]);
+        setChatHistory([]); // Initialize chat history
       } else {
         setError(`Mission "${lessonId}" not found or is invalid.`);
       }
@@ -122,6 +128,7 @@ const LessonPage = () => {
         setUserTags(data.userTags);
         // You might also want to handle loading 'completed' status here.
         setCurrentMediaIndex(data.currentMediaIndex || 0); // Load media index
+        setChatHistory(data.chatHistory || []);  // Load chat history
         setLesson(await fetchLessonData(lessonId)); // Load lesson data after progress
       } else {
         // If no progress exists, load the lesson and start from the beginning.
@@ -131,6 +138,7 @@ const LessonPage = () => {
           setCurrentBlockId(lessonData.blocks[0].block_id);
           setUserTags([]);
           setCurrentMediaIndex(0);
+          setChatHistory([]); // Initialize chat history
           // Initialize progress in Firestore.
           await saveLessonProgress(lessonData.blocks[0].block_id, [], 0);
         } else {
@@ -147,7 +155,7 @@ const LessonPage = () => {
 
 
 
-  const saveLessonProgress = async (blockId, tags, mediaIndex = 0, completed = false) => {
+  const saveLessonProgress = async (blockId, tags, mediaIndex = 0, chatHistory = [], completed = false) => {
     if (!userId || !lessonId || blockId === null || blockId === undefined) {
       console.warn("Attempted to save lesson progress with invalid blockId:", blockId);
       return; // Ensure user, lesson, and blockId are valid
@@ -162,6 +170,7 @@ const LessonPage = () => {
           currentBlockId: blockId,
           userTags: tags,
           currentMediaIndex: mediaIndex, // Save media index
+          chatHistory: chatHistory, // Save chat history
           completed: completed,
           lastUpdated: Timestamp.now(),
         },
@@ -212,9 +221,9 @@ const LessonPage = () => {
   const handleNavigate = useCallback((nextBlockId) => {
     if (nextBlockId) {
       setCurrentBlockId(nextBlockId);
-      saveLessonProgress(nextBlockId, userTags, currentMediaIndex);
+      saveLessonProgress(nextBlockId, userTags, currentMediaIndex, chatHistory);
     }
-  }, [userTags, saveLessonProgress, currentMediaIndex]);
+  }, [userTags, saveLessonProgress, currentMediaIndex, chatHistory]);
 
   const handleChoice = useCallback((choice) => {
     const { next_block, tag } = choice;
@@ -229,6 +238,7 @@ const LessonPage = () => {
           currentBlock: currentBlock,
           userResponse: choice,
           userTags: optimisticTags,
+          chatHistory: chatHistory // Include chat history
         };
         const response = await analyzeInteraction(payload);
         
@@ -243,7 +253,7 @@ const LessonPage = () => {
             setUserTags(prevTags => {
                 const withAdded = [...new Set([...prevTags, ...(response.added_traits || [])])];
                 const withRemoved = withAdded.filter(t => !(response.removed_traits || []).includes(t));
-                saveLessonProgress(currentBlock.next_block || pendingNavigation, withRemoved, currentMediaIndex); // Save with updated tags
+                saveLessonProgress(currentBlock.next_block || pendingNavigation, withRemoved, currentMediaIndex, chatHistory); // Save with updated tags
                 // Update persistent traits
                 const updatedPersistentTags = [...new Set([...persistentUserTags, ...withAdded])].filter(t => !response.removed_traits?.includes(t));
                 savePersistentUserTags(updatedPersistentTags);
@@ -252,7 +262,7 @@ const LessonPage = () => {
             });
         }
         else {
-          saveLessonProgress(currentBlock.next_block || pendingNavigation, userTags, currentMediaIndex);  // Save even if no tag changes
+          saveLessonProgress(currentBlock.next_block || pendingNavigation, userTags, currentMediaIndex, chatHistory);  // Save even if no tag changes
         }
         
         setPageState('feedback');
@@ -260,12 +270,12 @@ const LessonPage = () => {
         console.error("Failed to analyze interaction:", err);
         handleNavigate(next_block);
         setPageState('idle');
-        saveLessonProgress(next_block, userTags); // Save progress even on failure
+        saveLessonProgress(next_block, userTags, currentMediaIndex, chatHistory); // Save progress even on failure
       }
     };
 
     runAnalysis();
-  }, [userTags, lesson, currentBlock, handleNavigate, pendingNavigation, saveLessonProgress, currentMediaIndex, persistentUserTags, savePersistentUserTags]);
+  }, [userTags, lesson, currentBlock, handleNavigate, pendingNavigation, saveLessonProgress, currentMediaIndex, persistentUserTags, savePersistentUserTags, chatHistory]);
 
 
   // When lesson is completed (e.g. in Debrief block or similar)
@@ -300,6 +310,7 @@ const LessonPage = () => {
     loadLesson();
     loadPersistentUserTags().then(() => { // Ensure persistent tags are loaded first
       setUserTags(persistentUserTags); // Apply persistent traits to current lesson
+      setChatHistory([]); // Reset chat history on replay
     });
     setIsDebuggerOpen(false);
   }, [loadLesson, loadPersistentUserTags, persistentUserTags, setUserTags]);
@@ -398,8 +409,8 @@ const LessonPage = () => {
 
   const handleMediaChange = useCallback((index) => {
     setCurrentMediaIndex(index);
-    saveLessonProgress(currentBlockId, userTags, index); // Save media index
-  }, [currentBlockId, userTags, saveLessonProgress]);
+    saveLessonProgress(currentBlockId, userTags, index, chatHistory); // Save media index
+  }, [currentBlockId, userTags, saveLessonProgress, chatHistory]);
 
   const lessonNavControls = (
     <div className="flex items-center gap-2">
@@ -419,6 +430,42 @@ const LessonPage = () => {
     </div>
   );
 
+
+  const handleChatToggle = () => {
+    setIsChatOpen(prev => !prev);
+  };
+
+  const handleSendMessage = useCallback((message) => {
+    const newHistory = [...chatHistory, { sender: 'user', content: message }];
+    setChatHistory(newHistory);
+
+    const runAnalysis = async () => {
+      try {
+        const payload = {
+          lessonData: lesson,
+          currentBlock: currentBlock,
+          userResponse: { text: message, type: 'chat' },
+          userTags: userTags,
+          chatHistory: newHistory,
+        };
+        const response = await analyzeInteraction(payload);
+
+        if (response?.ai_message) {
+          setChatHistory([...newHistory, { sender: 'ai', content: response.ai_message }]);
+        }
+
+        setLastAnalysis(response);
+        setBackendAiMessage(response.ai_message);
+      } catch (error) {
+        console.error("Failed to send chat message:", error);
+      }
+    };
+    runAnalysis();
+    saveLessonProgress(currentBlockId, userTags, currentMediaIndex, newHistory); //update chatHistory
+
+  }, [chatHistory, lesson, currentBlock, userTags, saveLessonProgress, currentBlockId, currentMediaIndex]);
+
+
   return (
     <div className="min-h-screen bg-black text-white overflow-hidden relative">
       <div className="absolute inset-0 z-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_left,_rgba(236,72,153,0.15),_transparent_50%),radial-gradient(ellipse_at_bottom_right,_rgba(0,139,139,0.1),_transparent_60%)]"></div>
@@ -429,6 +476,13 @@ const LessonPage = () => {
             <div className="flex items-center gap-2">
               {lessonId && <LessonProgressIndicator lessonId={lessonId} />} {/* Render here */}
               {lessonNavControls}
+              <button
+                onClick={handleChatToggle}
+                className="font-mono text-xs bg-blue-500/20 text-blue-300 px-3 py-1.5 rounded-md hover:bg-blue-500/40 transition-colors flex items-center gap-1.5"
+              >
+                <MessageSquare size={16} />
+                Chat
+              </button>
             </div>
           ) : null
         }
@@ -474,6 +528,13 @@ const LessonPage = () => {
 
         </div>
       </main>
+      
+      <ChatPanel
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        chatHistory={chatHistory}
+        onSendMessage={handleSendMessage}
+      />
 
       {/* Log Button */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">

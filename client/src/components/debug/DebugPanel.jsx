@@ -338,7 +338,10 @@ const DebugPanel = ({ isOpen, onClose, lesson, onJump, currentBlockId, lastAnaly
                 {lesson.blocks.map((block, index) => (
                     <li key={block.block_id}>
                     <button 
-                        onClick={() => onJump(block.block_id)} 
+                        onClick={() => {
+                          onJump(block.block_id);
+                          setTimeout(() => onClose(), 100); // Close panel after jump
+                        }}                         
                         className={`w-full text-left px-3 py-2 rounded transition-colors text-sm ${currentBlockId === block.block_id ? 'bg-cyan-500/30 text-cyan-200 font-semibold' : 'text-gray-300 hover:bg-white/10'}`}
                     >
                         <span className="flex items-center gap-2">

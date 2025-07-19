@@ -8,7 +8,7 @@ import { auth } from '../../firebaseConfig';
 const Navbar = ({ extraControls, rightControls }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { currentUser } = useAuth();
+  const { currentUser, loading } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null); // Ref for the dropdown
 
@@ -61,14 +61,14 @@ const Navbar = ({ extraControls, rightControls }) => {
             Spacey
           </Link>
           {/* Dashboard link */}
-          {currentUser && (
+          {/* {currentUser && (
             <Link 
               to="/dashboard" 
               className={`text-lg font-semibold tracking-wide transition-colors px-1 ${location.pathname.startsWith('/dashboard') ? 'text-cyan-300' : 'text-white hover:text-gray-300'}`}
             >
               Dashboard
             </Link>
-          )}
+          )} */}
           {extraControls}
         </div>
 
@@ -77,7 +77,7 @@ const Navbar = ({ extraControls, rightControls }) => {
           {/* Render custom controls for the right side */}
           {rightControls}
 
-          {currentUser ? (
+          {(!loading && currentUser) ? (
             <div className="relative group" ref={dropdownRef}> {/* Add ref here */}
               <button 
                 className="p-1 rounded-full hover:bg-white/10 transition-colors"

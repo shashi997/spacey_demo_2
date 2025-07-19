@@ -1,3 +1,5 @@
+// src/hooks/useConversationManager.jsx
+
 import { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react';
 import { useSpeechCoordination, useCoordinatedSpeechSynthesis } from './useSpeechCoordination.jsx';
 import { sendChatMessageToAI, generateAvatarResponse } from '../api/spacey_api';
@@ -17,16 +19,20 @@ export const ConversationManagerProvider = ({ children }) => {
   });
   const [isProcessing, setIsProcessing] = useState(false);
   const [pendingResponses, setPendingResponses] = useState([]);
-  const [isAvatarSpeaking, setIsAvatarSpeaking] = useState(false);  // New state
+  const [hasGreeted, setHasGreeted] = useState(false);
 
   // Speech coordination
   const { globalSpeechState, canAvatarBeIdle, setContextState, trackActivity } = useSpeechCoordination();
-  const { speak, isSpeaking, cancel: cancelSpeech } = useCoordinatedSpeechSynthesis('conversation-manager');
+  
+  // =================================================================================
+  // THE FIX: Use the 'avatar' sourceId so the AI_Avatar component can react to it.
+  // I've also renamed the functions for clarity (e.g., `speak` -> `speakAsAvatar`).
+  // =================================================================================
+  const { speak: speakAsAvatar, cancel: cancelAvatarSpeech } = useCoordinatedSpeechSynthesis('avatar');
 
   // Refs for managing state
   const lastEmotionResponseTime = useRef(0);
   const lastIdleResponseTime = useRef(0);
-  const conversationTimeoutRef = useRef(null);
 
   // Add message to conversation history with context
   const addToHistory = useCallback((type, content, metadata = {}) => {
@@ -65,12 +71,10 @@ export const ConversationManagerProvider = ({ children }) => {
         userMood: emotionData.emotionalState?.emotion || prev.userMood
       };
 
-      // Only add to history if emotion significantly changed
       const emotionChanged = prev.emotionContext?.emotion !== newContext.emotionContext.emotion;
       const highConfidence = newContext.emotionContext.confidence > 0.4;
       
       if (emotionChanged && highConfidence) {
-        // Add emotion context to history but don't trigger immediate response
         setTimeout(() => {
           addToHistory('emotion-context', `User's emotional state changed to ${newContext.emotionContext.emotion}`, {
             confidence: newContext.emotionContext.confidence,
@@ -85,34 +89,30 @@ export const ConversationManagerProvider = ({ children }) => {
 
   // Build comprehensive context for AI requests
   const buildConversationContext = useCallback(() => {
-    // Get recent history and optimize payload size
     const recentHistory = conversationHistory.slice(-8).map(entry => ({
       type: entry.type,
-      content: entry.content.length > 500 ? entry.content.substring(0, 500) + '...' : entry.content, // Truncate very long messages
+      content: entry.content.length > 500 ? entry.content.substring(0, 500) + '...' : entry.content,
       timestamp: entry.timestamp
-    })); // Last 8 interactions (reduced from 10)
-    
-    const emotionContext = currentContext.emotionContext;
+    }));
     
     return {
       conversationHistory: recentHistory,
-      emotionContext,
+      emotionContext: currentContext.emotionContext,
       userActivity: currentContext.userActivity,
       currentTopic: currentContext.conversationTopic,
       userMood: currentContext.userMood,
       timeSinceLastInteraction: Date.now() - currentContext.lastInteractionTime,
-      isUserActive: Date.now() - currentContext.lastInteractionTime < 30000, // 30 seconds
+      isUserActive: Date.now() - currentContext.lastInteractionTime < 30000,
     };
   }, [conversationHistory, currentContext]);
 
-  // Unified Spacey response generator with personality consistency
+  // Unified Spacey response generator
   const generateSpaceyResponse = useCallback(async (
     input, 
-    responseType = 'chat', // 'chat', 'idle', 'emotion-aware', 'encouragement'
+    responseType = 'chat',
     userInfo = null
   ) => {
     if (isProcessing) {
-      // Queue the request if currently processing
       setPendingResponses(prev => [...prev, { input, responseType, userInfo, timestamp: Date.now() }]);
       return null;
     }
@@ -125,7 +125,6 @@ export const ConversationManagerProvider = ({ children }) => {
       let response;
 
       if (responseType === 'chat') {
-        // Enhanced chat that includes emotion context
         const enhancedInput = contextData.emotionContext ? 
           `${input}\n\n[VISUAL CONTEXT: User appears ${contextData.userMood}, ${contextData.emotionContext.visualDescription || 'engaged'}]` : 
           input;
@@ -135,12 +134,10 @@ export const ConversationManagerProvider = ({ children }) => {
           includeEmotionContext: true
         });
         
-        // Add to conversation history
         addToHistory('user', input);
         addToHistory('spacey', response.message, { responseType, context: contextData });
 
       } else {
-        // Avatar-style responses with full context
         const avatarPayload = {
           ...userInfo,
           conversationHistory: contextData.conversationHistory,
@@ -153,7 +150,6 @@ export const ConversationManagerProvider = ({ children }) => {
           responseType
         );
 
-        // Add to conversation history
         addToHistory('spacey', response.response, { 
           responseType, 
           trigger: responseType,
@@ -165,21 +161,16 @@ export const ConversationManagerProvider = ({ children }) => {
 
     } catch (error) {
       console.error('Error generating Spacey response:', error);
-      
-      // Fallback response that maintains personality
       const fallbackResponse = {
         message: "Oops, my circuits got a bit tangled there! Give me a moment to recalibrate my stellar wit.",
         response: "Oops, my circuits got a bit tangled there! Give me a moment to recalibrate my stellar wit.",
         type: 'fallback'
       };
-
       addToHistory('spacey', fallbackResponse.message || fallbackResponse.response, { 
         responseType: 'fallback',
         error: error.message 
       });
-
       return fallbackResponse;
-
     } finally {
       setIsProcessing(false);
     }
@@ -189,50 +180,38 @@ export const ConversationManagerProvider = ({ children }) => {
   const generateCoordinatedResponse = useCallback(async (input, responseType, userInfo, options = {}) => {
     const { force = false, priority = 'normal' } = options;
 
-    // Check if we should respond based on current state
     if (!force) {
-      // Don't interrupt active speech unless high priority
       if (globalSpeechState.isAnySpeaking && priority !== 'high') {
         console.log('🔇 Skipping response - speech already active');
         return null;
       }
-
-      // Rate limiting for different response types
       const now = Date.now();
       if (responseType === 'emotion-aware' && now - lastEmotionResponseTime.current < 15000) {
         console.log('🔇 Skipping emotion response - too frequent');
         return null;
       }
-      if (responseType === 'idle' && now - lastIdleResponseTime.current < 300000) { // 5 minutes
+      if (responseType === 'idle' && now - lastIdleResponseTime.current < 300000) {
         console.log('🔇 Skipping idle response - too frequent');
         return null;
       }
     }
 
-    // Generate response
     const response = await generateSpaceyResponse(input, responseType, userInfo);
     
     if (response && (response.message || response.response)) {
       const textToSpeak = response.message || response.response;
       
-      // Update rate limiting
-      if (responseType === 'emotion-aware') {
-        lastEmotionResponseTime.current = Date.now();
-      } else if (responseType === 'idle') {
-        lastIdleResponseTime.current = Date.now();
-      }
+      if (responseType === 'emotion-aware') lastEmotionResponseTime.current = Date.now();
+      else if (responseType === 'idle') lastIdleResponseTime.current = Date.now();
 
-      // Speak the response with coordination
-      speak(textToSpeak, {
-        onStart: () => setIsAvatarSpeaking(true),  // Set speaking to true on start 
+      // =================================================================================
+      // THE FIX: Use the correctly named `speakAsAvatar` function.
+      // =================================================================================
+      speakAsAvatar(textToSpeak, {
         onEnd: () => {
-          setIsAvatarSpeaking(false);
-          // Process pending responses after current speech ends
           if (pendingResponses.length > 0) {
             const nextResponse = pendingResponses[0];
             setPendingResponses(prev => prev.slice(1));
-            
-            // Process next response with delay
             setTimeout(() => {
               generateCoordinatedResponse(
                 nextResponse.input,
@@ -249,8 +228,33 @@ export const ConversationManagerProvider = ({ children }) => {
     }
 
     return null;
-  }, [generateSpaceyResponse, globalSpeechState.isAnySpeaking, speak, pendingResponses]);
+  }, [generateSpaceyResponse, globalSpeechState.isAnySpeaking, speakAsAvatar, pendingResponses]);
 
+
+  const handleGreeting = useCallback(async (userInfo) => {
+    // Exit if already greeted, processing something, or something is already being said.
+    if (hasGreeted || isProcessing || globalSpeechState.isAnySpeaking) {
+      return;
+    }
+    // Mark as greeted immediately to prevent repeats.
+    setHasGreeted(true);
+    setIsProcessing(true);
+
+    const userName = userInfo?.displayName?.split(' ')[0] || 'there';
+    const greetingText = `Hello ${userName}! I'm Spacey, your personal guide to the cosmos. I'm all set up and ready to explore. What's on your mind today?`;
+    
+    addToHistory('spacey', greetingText, { responseType: 'greeting' });
+
+    try {
+      // Speak the greeting as the avatar
+      await speakAsAvatar(greetingText);
+    } catch (error) {
+      console.error("Greeting speech failed:", error);
+    } finally {
+      // Ensure processing is set to false even if speech fails
+      setIsProcessing(false);
+    }
+  }, [hasGreeted, isProcessing, globalSpeechState.isAnySpeaking, addToHistory, speakAsAvatar]);
   // Handle user chat input
   const handleUserChat = useCallback(async (message, userInfo) => {
     setContextState('isInChat', true);
@@ -258,7 +262,6 @@ export const ConversationManagerProvider = ({ children }) => {
     
     const response = await generateCoordinatedResponse(message, 'chat', userInfo, { priority: 'high' });
     
-    // Clear chat context after delay
     setTimeout(() => {
       setContextState('isInChat', false);
     }, 10000);
@@ -266,20 +269,18 @@ export const ConversationManagerProvider = ({ children }) => {
     return response;
   }, [generateCoordinatedResponse, setContextState, trackActivity]);
 
+
+
   // Intelligent idle responses
   const handleIdleCheck = useCallback(async (userInfo) => {
     if (!canAvatarBeIdle()) return null;
 
     const contextData = buildConversationContext();
-    
-    // Create contextual idle message based on conversation history and emotion
     let idlePrompt = "Ready to continue our cosmic journey?";
     
-    if (contextData.conversationHistory.length > 0) {
-      const lastInteraction = contextData.conversationHistory[contextData.conversationHistory.length - 1];
-      if (lastInteraction.type === 'user') {
-        idlePrompt = "I'm here when you're ready to continue our conversation!";
-      }
+    const lastInteraction = contextData.conversationHistory.at(-1);
+    if (lastInteraction?.type === 'user') {
+      idlePrompt = "I'm here when you're ready to continue our conversation!";
     }
 
     if (contextData.emotionContext?.emotion && contextData.emotionContext.emotion !== 'neutral') {
@@ -289,19 +290,13 @@ export const ConversationManagerProvider = ({ children }) => {
     return generateCoordinatedResponse(idlePrompt, 'idle', userInfo);
   }, [canAvatarBeIdle, buildConversationContext, generateCoordinatedResponse]);
 
-  // Smart emotion-aware responses (triggered by significant changes)
+  // Smart emotion-aware responses
   const handleEmotionAwareResponse = useCallback(async (userInfo) => {
     const contextData = buildConversationContext();
-    
-    if (!contextData.emotionContext || contextData.emotionContext.confidence < 0.4) {
-      return null;
-    }
-
-    // Only respond to significant emotion changes during conversation
-    if (contextData.timeSinceLastInteraction > 60000) return null; // No response if idle too long
+    if (!contextData.emotionContext || contextData.emotionContext.confidence < 0.4) return null;
+    if (contextData.timeSinceLastInteraction > 60000) return null;
 
     const emotionPrompt = `I can see you're feeling ${contextData.emotionContext.emotion}. ${contextData.emotionContext.visualDescription}`;
-
     return generateCoordinatedResponse(emotionPrompt, 'emotion-aware', userInfo);
   }, [buildConversationContext, generateCoordinatedResponse]);
 
@@ -311,28 +306,23 @@ export const ConversationManagerProvider = ({ children }) => {
       setConversationHistory(prev => prev.filter(entry => 
         Date.now() - entry.timestamp < 3600000 // Keep last hour
       ));
-    }, 300000); // Clean every 5 minutes
+    }, 300000);
 
     return () => clearInterval(cleanup);
   }, []);
 
   const value = {
-    // State
     conversationHistory,
     currentContext,
     isProcessing,
-    isAvatarSpeaking,  // Export new state
-    
-    // Actions
     updateEmotionContext,
     handleUserChat,
     handleIdleCheck,
     handleEmotionAwareResponse,
+    handleGreeting,
     generateCoordinatedResponse,
     addToHistory,
     buildConversationContext,
-    
-    // Utils
     clearHistory: () => setConversationHistory([]),
     getRecentHistory: (count = 5) => conversationHistory.slice(-count),
   };
@@ -351,4 +341,4 @@ export const useConversationManager = () => {
     throw new Error('useConversationManager must be used within a ConversationManagerProvider');
   }
   return context;
-}; 
+};

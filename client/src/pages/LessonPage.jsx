@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Loader, AlertTriangle, RefreshCw, BookOpen, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Loader, AlertTriangle, RefreshCw, BookOpen, MessageSquare, Play } from 'lucide-react';
 
 // API Service
 import { analyzeInteraction, saveChoice, saveFinalSummary } from '../api/lesson_api';
@@ -41,6 +41,7 @@ const fetchLessonData = async (lessonId) => {
 
 const LessonPage = () => {
   const { lessonId } = useParams();
+  const [hasStarted, setHasStarted] = useState(false); // Add a state to track if the lesson has started
   
   const [lesson, setLesson] = useState(null);
   const [currentBlockId, setCurrentBlockId] = useState(null);
@@ -103,6 +104,7 @@ const LessonPage = () => {
         setError(`Mission "${lessonId}" not found or is invalid.`);
       }
       setIsLoading(false);
+      setHasStarted(false);
     });
   }, [lessonId]);
 
@@ -398,6 +400,14 @@ const LessonPage = () => {
     }
   };
 
+  const startLesson = useCallback(() => {
+    if (lesson && lesson.blocks && lesson.blocks.length > 0) {
+      setCurrentBlockId(lesson.blocks[0].block_id); // Now set the initial block
+      saveLessonProgress(lesson.blocks[0].block_id, [], 0);
+      setHasStarted(true); // Mark the lesson as started
+    }
+  }, [lesson, saveLessonProgress]);
+
   const renderLessonContent = () => {
     if (isLoading) {
       return (
@@ -414,6 +424,24 @@ const LessonPage = () => {
           <AlertTriangle size={48} />
           <p className="font-mono text-center">{error}</p>
           <Link to="/dashboard" className="mt-4 text-cyan-300 hover:underline">Return to Dashboard</Link>
+        </div>
+      );
+    }
+
+    if (!hasStarted) {
+      return (
+        <div className="flex flex-col items-center justify-center  gap-6 h-96">
+          <h2 className="text-2xl font-bold text-cyan-300">Get Ready for Your Mission:</h2>
+          <p className="text-gray-300 font-mono text-center max-w-md">
+            Click the button below to begin your learning adventure!
+          </p>
+          <button
+            onClick={startLesson}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-br from-purple-600 to-cyan-600 text-white font-bold tracking-wider rounded-full shadow-lg hover:scale-105 transition-all duration-300"
+          >
+            <Play size={20} />
+            Start Mission
+          </button>
         </div>
       );
     }

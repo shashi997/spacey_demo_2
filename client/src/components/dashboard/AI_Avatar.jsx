@@ -11,7 +11,7 @@ import * as THREE from 'three';
 
 
 
-function TalkingModel({ isTalking ,expression = 'neutral'}) {
+function TalkingModel({ isTalking , expression = 'neutral' }) {
   const group = useRef();
   const { scene, animations } = useGLTF('/models/talking11.glb');
   const { actions, names } = useAnimations(animations, group);
@@ -157,9 +157,9 @@ export default function AI_Avatar({
   onAvatarResponse,
   enablePersonalization = true,
   className = "",
-  isExternalSpeaking = false // 👈 NEW PROP
+  isExternalSpeaking = false 
 }) {
-  const [isTalking, setIsTalking] = useState(false);
+  //const [isTalking, setIsTalking] = useState(false); 
   const [userTraits, setUserTraits] = useState(['curious']);
   const [conversationContext, setConversationContext] = useState(null);
   const [lastEmotionChange, setLastEmotionChange] = useState(null);
@@ -265,32 +265,32 @@ export default function AI_Avatar({
   }, [webcamRef, enablePersonalization, lastEmotionChange, updateEmotionContext, handleEmotionAwareResponse, userInfo, globalSpeechState.isAnySpeaking]);
 
   // Monitor conversation manager for avatar responses
-  useEffect(() => {
-    // Watch for new responses in conversation history
-    if (conversationHistory.length > 0) {
-      const lastEntry = conversationHistory[conversationHistory.length - 1];
+  // useEffect(() => {
+  //   // Watch for new responses in conversation history
+  //   if (conversationHistory.length > 0) {
+  //     const lastEntry = conversationHistory[conversationHistory.length - 1];
       
-      if (lastEntry.type === 'spacey' && lastEntry.timestamp > Date.now() - 2000) {
-        // New Spacey response - trigger talking animation
-        setIsTalking(true);
+  //     if (lastEntry.type === 'spacey' && lastEntry.timestamp > Date.now() - 2000) {
+  //       // New Spacey response - trigger talking animation
+  //       // setIsTalking(true);
         
-        // Notify parent component
-        if (onAvatarResponse) {
-          onAvatarResponse({
-            response: lastEntry.content,
-            trigger: lastEntry.metadata?.responseType || 'conversation',
-            visualContext: currentContext.emotionContext,
-            userTraits,
-            conversationContext: lastEntry.context
-          });
-        }
+  //       // Notify parent component
+  //       if (onAvatarResponse) {
+  //         onAvatarResponse({
+  //           response: lastEntry.content,
+  //           trigger: lastEntry.metadata?.responseType || 'conversation',
+  //           visualContext: currentContext.emotionContext,
+  //           userTraits,
+  //           conversationContext: lastEntry.context
+  //         });
+  //       }
 
-        // Stop talking animation after estimated speech time
-        const estimatedDuration = Math.max(3000, lastEntry.content.length * 50);
-        setTimeout(() => setIsTalking(false), estimatedDuration);
-      }
-    }
-  }, [conversationHistory, onAvatarResponse, userTraits, currentContext.emotionContext]);
+  //       // Stop talking animation after estimated speech time
+  //       // const estimatedDuration = Math.max(3000, lastEntry.content.length * 50);
+  //       // setTimeout(() => setIsTalking(false), estimatedDuration);
+  //     }
+  //   }
+  // }, [conversationHistory, onAvatarResponse, userTraits, currentContext.emotionContext]);
 
   // Set up intelligent idle checking
   useEffect(() => {
@@ -378,7 +378,7 @@ export default function AI_Avatar({
         <ambientLight intensity={0.6} />
         <directionalLight position={[2, 4, 2]} intensity={1.2} />
         <TalkingModel 
-          isTalking={isTalking || isExternalSpeaking}
+          isTalking={isExternalSpeaking}
           expression={currentContext.emotionContext?.emotion?.toLowerCase() || 'neutral'} 
         />
 
@@ -410,7 +410,7 @@ export default function AI_Avatar({
         )}
 
         {/* Speaking/Processing Status */}
-        {(isTalking || isProcessing) && (
+        {(isExternalSpeaking || isProcessing) && (
           <div className="flex items-center gap-2 px-3 py-1 bg-black/60 backdrop-blur-sm rounded-full text-xs">
             {isProcessing ? (
               <div className="w-3 h-3 border border-yellow-400 border-t-transparent rounded-full animate-spin" />
@@ -425,7 +425,7 @@ export default function AI_Avatar({
       </div>
 
       {/* Current Response Display */}
-      {conversationHistory.length > 0 && isTalking && (
+      {conversationHistory.length > 0 && isExternalSpeaking && (
         <div className="absolute bottom-4 left-4 right-4 bg-black/80 backdrop-blur-sm rounded-lg p-4 border border-cyan-400/30">
           <div className="flex items-start gap-3">
             <MessageCircle className="w-5 h-5 text-cyan-400 mt-0.5 flex-shrink-0" />

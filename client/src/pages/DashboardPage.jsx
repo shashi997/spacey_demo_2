@@ -12,7 +12,7 @@ import LessonCatalogueModal from '../components/dashboard/LessonCatalogueModal';
 import { useAuth } from '../hooks/useAuth';
 import { useConversationManager } from '../hooks/useConversationManager.jsx';
 
-import { useSpeechRecognition } from '../hooks/useSpeechRecognition'; // 👈 NEW
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition'; // NEW
 
 const StarCanvas = () => (
   <div className="absolute inset-0 z-0">
@@ -36,6 +36,7 @@ const DashboardPage = () => {
   // Enhanced Avatar States
   const [enablePersonalization, setEnablePersonalization] = useState(true);
   const [emotionData, setEmotionData] = useState(null);
+  const { isAvatarSpeaking } = useConversationManager();
   
   // Refs for component communication
   const webcamRef = useRef(null);
@@ -280,7 +281,7 @@ const DashboardPage = () => {
                     userInfo={user}
                     onAvatarResponse={handleAvatarResponse}
                     enablePersonalization={enablePersonalization}
-                    isExternalSpeaking={isAnimating} //  This controls the talking animation from chat
+                    isExternalSpeaking={isAvatarSpeaking} //  This controls the talking animation from chat
                     className="w-full h-full"
                   />
 

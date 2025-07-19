@@ -17,6 +17,7 @@ export const ConversationManagerProvider = ({ children }) => {
   });
   const [isProcessing, setIsProcessing] = useState(false);
   const [pendingResponses, setPendingResponses] = useState([]);
+  const [isAvatarSpeaking, setIsAvatarSpeaking] = useState(false);  // New state
 
   // Speech coordination
   const { globalSpeechState, canAvatarBeIdle, setContextState, trackActivity } = useSpeechCoordination();
@@ -223,7 +224,9 @@ export const ConversationManagerProvider = ({ children }) => {
 
       // Speak the response with coordination
       speak(textToSpeak, {
+        onStart: () => setIsAvatarSpeaking(true),  // Set speaking to true on start 
         onEnd: () => {
+          setIsAvatarSpeaking(false);
           // Process pending responses after current speech ends
           if (pendingResponses.length > 0) {
             const nextResponse = pendingResponses[0];
@@ -318,6 +321,7 @@ export const ConversationManagerProvider = ({ children }) => {
     conversationHistory,
     currentContext,
     isProcessing,
+    isAvatarSpeaking,  // Export new state
     
     // Actions
     updateEmotionContext,

@@ -190,7 +190,7 @@ export const useCoordinatedSpeechSynthesis = (sourceId) => {
     }
   }, []);
 
-  const speak = useCallback((text, { onEnd, force = false } = {}) => {
+  const speak = useCallback((text, { onEnd, onStart } = {}) => {
     const textToSpeak = text.trim();
     if (!isSupported || !textToSpeak) {
       if (onEnd) setTimeout(() => onEnd(), 0);
@@ -216,7 +216,7 @@ export const useCoordinatedSpeechSynthesis = (sourceId) => {
         synth.cancel();
       }
 
-      const utterance = new SpeechSynthesisUtterance(textToSpeak);
+      const utterance = new SpeechSynthesisUtterance(textToSpeak);     
       const selectedVoice =
         availableVoices.find(v => v.name === 'Google UK English Female' && v.localService) ||
         availableVoices.find(v => v.name === 'Microsoft Zira - English (United States)' && v.localService) ||
@@ -238,6 +238,7 @@ export const useCoordinatedSpeechSynthesis = (sourceId) => {
         isSpeakingRef.current = true;
         setIsSpeaking(true);
         registerSpeechSource(sourceId);
+        if (onStart) onStart();  // Call the onStart callback
       };
 
       utterance.onend = () => {

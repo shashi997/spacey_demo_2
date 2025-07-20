@@ -237,13 +237,16 @@ export default function AI_Avatar({
         />
       </Canvas>
 
-      <div className="absolute top-4 left-4 space-y-2">
+      <div className="absolute top-10 space-y-2">
+        {/* Personalization and Visual Analysis Combined */}
         {enablePersonalization && (
           <div className="flex items-center gap-2 px-3 py-1 bg-black/60 backdrop-blur-sm rounded-full text-xs">
-            <Brain className="w-3 h-3 text-blue-400" />
-            <span className="text-white">{userTraits.slice(0, 2).join(', ')}</span>
+            <Brain className={`w-3 h-3 ${userTraits.length > 0 ? 'text-blue-400' : 'text-gray-400'}`} />
+            <span className="text-white">{userTraits.length > 0 ? userTraits.slice(0, 2).join(', ') : 'Learning...'}</span>
           </div>
         )}
+
+        {/* Visual Analysis Status */}
         {currentContext.emotionContext?.faceDetected && (
           <div className="flex items-center gap-2 px-3 py-1 bg-black/60 backdrop-blur-sm rounded-full text-xs">
             <Eye className="w-3 h-3 text-green-400" />
@@ -251,6 +254,8 @@ export default function AI_Avatar({
             <span className="text-gray-300">{Math.round(currentContext.emotionContext.confidence * 100)}%</span>
           </div>
         )}
+
+        {/* Speaking/Processing Status */}
         {(isTalking || isProcessing) && (
           <div className="flex items-center gap-2 px-3 py-1 bg-black/60 backdrop-blur-sm rounded-full text-xs">
             {isProcessing && !isTalking ? (

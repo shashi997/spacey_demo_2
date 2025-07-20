@@ -12,17 +12,7 @@ export const useAuth = () => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => { // Make the callback async
-
-      if(localStorage.getItem('currentUser')) {
-        // If currentUser is already stored in localStorage, use it
-        const storedUser = JSON.parse(localStorage.getItem('currentUser'));
-        setCurrentUser(storedUser);
-        setLoading(false)
-        return; 
-      }
-        
       setCurrentUser(user);
-      
       if (user) {
         // If a user is logged in, fetch their data from Firestore
         try {

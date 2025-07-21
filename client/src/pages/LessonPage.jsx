@@ -402,11 +402,33 @@ const LessonPage = () => {
 
   const startLesson = useCallback(() => {
     if (lesson && lesson.blocks && lesson.blocks.length > 0) {
-      setCurrentBlockId(lesson.blocks[0].block_id); // Now set the initial block
-      saveLessonProgress(lesson.blocks[0].block_id, [], 0);
-      setHasStarted(true); // Mark the lesson as started
+      // Check if progress already exists
+      const progressDocId = `${userId}_${lessonId}`;
+      const progressDocRef = doc(db, "lesson_progress", progressDocId);
+
+      getDoc(progressDocRef).then((docSnap) => {
+        if (docSnap.exists()) {
+          // Progress exists, load from saved data
+          const data = docSnap.data();
+          setCurrentBlockId(data.currentBlockId);
+          setUserTags(data.userTags);
+          setCurrentMediaIndex(data.currentMediaIndex || 0);
+          setChatHistory(data.chatHistory || []);
+        } else {
+          // No progress, start from the first block
+          setCurrentBlockId(lesson.blocks[0].block_id);
+          saveLessonProgress(lesson.blocks[0].block_id, [], 0, [], false); // Save initial progress
+        }
+        setHasStarted(true); // Mark the lesson as started
+      }).catch((error) => {
+        console.error("Failed to check lesson progress:", error);
+        // Handle error, maybe start from beginning as fallback
+        setCurrentBlockId(lesson.blocks[0].block_id);
+        saveLessonProgress(lesson.blocks[0].block_id, [], 0, [], false);
+        setHasStarted(true);
+      });
     }
-  }, [lesson, saveLessonProgress]);
+  }, [lesson, userId, lessonId, saveLessonProgress]);
 
   const renderLessonContent = () => {
     if (isLoading) {
@@ -495,11 +517,11 @@ const LessonPage = () => {
     setIsChatOpen(prev => !prev);
   };
 
-  const handleSendMessage = useCallback((message) => {
-    const newHistory = [...chatHistory, { sender: 'user', content: message }];
+  const handleSendMessage = useCallback(async (message) => {
+    let newHistory = [...chatHistory, { sender: 'user', content: message }];
     setChatHistory(newHistory);
+    saveLessonProgress(currentBlockId, userTags, currentMediaIndex, newHistory); // Save user message immediately
 
-    const runAnalysis = async () => {
       try {
         const payload = {
           lessonData: lesson,
@@ -511,7 +533,9 @@ const LessonPage = () => {
         const response = await analyzeInteraction(payload);
 
         if (response?.ai_message) {
-          setChatHistory([...newHistory, { sender: 'ai', content: response.ai_message }]);
+          newHistory = [...newHistory, { sender: 'ai', content: response.ai_message }];
+          setChatHistory(newHistory);
+          saveLessonProgress(currentBlockId, userTags, currentMediaIndex, newHistory); // Save updated history with AI response
         }
 
         setLastAnalysis(response);
@@ -519,10 +543,6 @@ const LessonPage = () => {
       } catch (error) {
         console.error("Failed to send chat message:", error);
       }
-    };
-    runAnalysis();
-    saveLessonProgress(currentBlockId, userTags, currentMediaIndex, newHistory); //update chatHistory
-
   }, [chatHistory, lesson, currentBlock, userTags, saveLessonProgress, currentBlockId, currentMediaIndex]);
 
 

@@ -68,6 +68,15 @@ const Navbar = ({ extraControls, rightControls }) => {
           >
             🌌 Spacey {/* Example text logo */}
           </Link>
+           {/* Dashboard link */}
+          {currentUser && (
+            <Link 
+              to="/dashboard" 
+              className={`text-lg font-semibold tracking-wide transition-colors px-1 ${location.pathname.startsWith('/dashboard') ? 'text-cyan-300' : 'text-white hover:text-gray-300'}`}
+            >
+              Dashboard
+            </Link>
+          )}
           {/* Main Navigation Links (hide on small screens) */}
           <div className="hidden md:flex items-center space-x-6"> {/* Use space-x-6 for spacing */}
             {extraControls}

@@ -300,6 +300,96 @@ export const ConversationManagerProvider = ({ children }) => {
     return generateCoordinatedResponse(emotionPrompt, 'emotion-aware', userInfo);
   }, [buildConversationContext, generateCoordinatedResponse]);
 
+  // Lesson-specific tutoring responses
+  const handleLessonTutoring = useCallback(async (userInfo, lessonContext, tutorAction, additionalData = null) => {
+    if (!lessonContext) return null;
+
+    const contextData = buildConversationContext();
+    let tutorPrompt = '';
+
+    switch (tutorAction) {
+      case 'welcome':
+        tutorPrompt = `Welcome aboard, Commander! I'm Spacey, your AI mission specialist for "${lessonContext.title}". 
+
+Think of me as your personal guide through the cosmos - I've been designed to help astronauts like you understand the complexities of space exploration. This mission, ${lessonContext.mission_id}, will take us through some fascinating territory.
+
+Before we begin, imagine you're standing in the command center of a real space station, looking out at the vast expanse of space. Every decision you make here could mean the difference between mission success and failure. Are you ready to embark on this cosmic adventure?`;
+        break;
+      
+      case 'question_explanation':
+        if (additionalData?.question && additionalData?.context) {
+          tutorPrompt = `Let me help you understand this crucial mission decision, Commander.
+
+**The Situation:** ${additionalData.context}
+
+**Why This Matters:** In real space missions, decisions like this have happened before. For example, ${additionalData.realExample || 'during the Apollo missions, astronauts had to make split-second decisions that determined their survival'}.
+
+**The Consequences:** 
+- If you choose one path: ${additionalData.consequence1 || 'you might face certain challenges'}
+- If you choose another: ${additionalData.consequence2 || 'different opportunities and risks emerge'}
+
+**Real-World Connection:** ${additionalData.realWorldConnection || 'This mirrors actual scenarios faced by astronauts and mission controllers at NASA and other space agencies.'}
+
+Think carefully, Commander. What does your training tell you? What would you do if you were really out there in the void of space?`;
+        }
+        break;
+      
+      case 'concept_explanation':
+        if (additionalData?.concept) {
+          tutorPrompt = `Commander, let me break down ${additionalData.concept} for you in a way that connects to our mission.
+
+**The Science Behind It:** ${additionalData.concept} is fundamental to space exploration because...
+
+**Real Mission Example:** During the ${additionalData.missionExample || 'International Space Station operations'}, astronauts encountered this exact principle when...
+
+**Visual Picture:** Imagine you're floating in your spacecraft, and ${additionalData.visualScenario || 'you can see the effects of this principle all around you'}.
+
+**Why It Matters for Your Mission:** Understanding this concept will help you ${additionalData.missionRelevance || 'make better decisions as we progress through this space mission'}.
+
+**The Bigger Picture:** This connects to the larger goal of space exploration, which is to ${additionalData.biggerPicture || 'push the boundaries of human knowledge and capability'}.
+
+Does this help clarify things, Commander?`;
+        }
+        break;
+      
+      case 'encouragement':
+        tutorPrompt = `Outstanding work, Commander! You're demonstrating the kind of critical thinking that made the Apollo missions successful.
+
+**What You're Doing Right:** Your approach shows ${additionalData?.strength || 'excellent analytical skills'}. Real astronauts like ${additionalData?.astronautExample || 'Neil Armstrong and Sally Ride'} showed similar qualities.
+
+**The Journey Ahead:** Remember, every great space explorer started exactly where you are now - asking questions, thinking critically, and pushing through challenges.
+
+**Mission Perspective:** You're not just learning about space science; you're developing the mindset of a true space explorer. Every question you ask, every concept you master, brings us closer to humanity's next giant leap.
+
+Keep going, Commander. The cosmos awaits your discoveries!`;
+        break;
+      
+      default:
+        tutorPrompt = `Commander, I'm here to guide you through "${lessonContext.title}". Whether you need clarification on space science concepts, want to understand the implications of your mission choices, or just want to explore the fascinating world of space exploration, I'm at your service.
+
+Think of our conversation as a mission briefing between two space professionals. What would you like to explore about our current mission?`;
+    }
+
+    // Enhanced context for lesson mode with storytelling emphasis
+    const enhancedTutorPrompt = `${tutorPrompt}
+
+[ADVANCED TUTORING CONTEXT]
+Mission: "${lessonContext.title}" (ID: ${lessonContext.mission_id})
+Role: Spacey - AI Mission Specialist and Space Science Tutor
+
+TUTORING GUIDELINES:
+- Use storytelling techniques with real space mission examples
+- Provide concrete consequences and implications for choices
+- Connect abstract concepts to tangible space exploration scenarios
+- Maintain an encouraging, professional tone like a mission commander
+- Use vivid imagery and scenarios to make concepts memorable
+- Reference real astronauts, missions, and space agencies when relevant
+- Help users understand both the science AND the human drama of space exploration
+- Always frame learning as preparation for real space missions`;
+
+    return generateCoordinatedResponse(enhancedTutorPrompt, 'lesson-tutor', userInfo, { priority: 'normal' });
+  }, [buildConversationContext, generateCoordinatedResponse]);
+
   // Clear old conversation data
   useEffect(() => {
     const cleanup = setInterval(() => {
@@ -320,6 +410,7 @@ export const ConversationManagerProvider = ({ children }) => {
     handleIdleCheck,
     handleEmotionAwareResponse,
     handleGreeting,
+    handleLessonTutoring,
     generateCoordinatedResponse,
     addToHistory,
     buildConversationContext,

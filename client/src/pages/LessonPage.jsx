@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Loader, AlertTriangle, RefreshCw, BookOpen, MessageSquare, Play } from 'lucide-react';
+import { ArrowLeft, Loader, AlertTriangle, RefreshCw, BookOpen, MessageSquare, Play, Mic, MicOff } from 'lucide-react';
 
 // API Service
 import { analyzeInteraction, saveChoice, saveFinalSummary } from '../api/lesson_api';
@@ -13,16 +13,20 @@ import NarrationBlock from '../components/lesson/NarrationBlock';
 import ChoiceBlock from '../components/lesson/ChoiceBlock';
 import ReflectionBlock from '../components/lesson/ReflectionBlock';
 import QuizBlock from '../components/lesson/QuizBlock';
-import CharacterModel from '../components/lesson/CharacterModel';
+import AIAvatar from '../components/ui/AIAvatar';
 import DebugPanel from '../components/debug/DebugPanel';
 import AiFeedback from '../components/lesson/AiFeedback';
 import LogPanel from '../components/lesson/LogPanel';
 import MediaDisplay from '../components/lesson/MediaDisplay';
 import LessonProgressIndicator from '../components/lesson/LessonProgressIndicator'; // Import LessonProgressIndicator
-import ChatPanel from '../components/chat/ChatPanel';
+// Remove ChatPanel import since we're using integrated chat
+// import ChatPanel from '../components/chat/ChatPanel';
 
 // Hooks
 import useAudio from '../hooks/useAudio';
+import { useAuth } from '../hooks/useAuth';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { useConversationManager } from '../hooks/useConversationManager';
 
 import { db, auth } from '../firebaseConfig';  // Import Firebase services
 import { doc, setDoc, getDoc, Timestamp } from 'firebase/firestore';
@@ -43,6 +47,11 @@ const fetchLessonData = async (lessonId) => {
 
 const LessonPage = () => {
   const { lessonId } = useParams();
+  const { currentUser } = useAuth();
+  
+  // --- CONVERSATION MANAGER ---
+  const { handleUserChat } = useConversationManager();
+  
   const [hasStarted, setHasStarted] = useState(false); // Add a state to track if the lesson has started
   
   const [lesson, setLesson] = useState(null);
@@ -52,7 +61,7 @@ const LessonPage = () => {
   const [error, setError] = useState(null);
   const [isDebuggerOpen, setIsDebuggerOpen] = useState(false);
   const [lastAnalysis, setLastAnalysis] = useState(null);
-  const [userId, setUserId] = useState(null);
+
   const [persistentUserTags, setPersistentUserTags] = useState([]); // For global traits
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);  // For media progress
 
@@ -76,34 +85,44 @@ const LessonPage = () => {
   const [chatHistory, setChatHistory] = useState([]);
   const [isChatOpen, setIsChatOpen] = useState(false); // Control ChatPanel visibility
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setUserId(user.uid);
-      } else {
-        setUserId(null);
+  // --- VOICE STATE ---
+  const [isVoiceActive, setIsVoiceActive] = useState(false);
+  
+  // --- VOICE RECOGNITION ---
+  const {
+    transcript,
+    isListening,
+    startListening,
+    stopListening,
+    isRecognitionSupported
+  } = useSpeechRecognition({
+    onFinalResult: (finalText) => {
+      if (finalText.trim()) {
+        handleSendMessage(finalText);
+        setIsVoiceActive(false);
       }
-    });
-    return () => unsubscribe();  // Cleanup on unmount
-  }, []);
+    }
+  });
+
+
 
   useEffect(() => {
-    if (lessonId && userId) {
+    if (lessonId && currentUser?.uid) {
       checkLessonAccess();
       loadLessonProgress();
       loadPersistentUserTags();
-    } else if (lessonId && !userId) {  // Only load from scratch if no user is logged in
+    } else if (lessonId && !currentUser?.uid) {  // Only load from scratch if no user is logged in
     loadLesson();
   }
-  }, [lessonId, userId]);
+  }, [lessonId, currentUser?.uid]);
 
   // Check lesson access when user and lesson are available
   const checkLessonAccess = async () => {
-    if (!userId || !lessonId) return;
+    if (!currentUser?.uid || !lessonId) return;
     
     setAccessLoading(true);
     try {
-      const accessResult = await hasLessonAccess(userId, lessonId);
+      const accessResult = await hasLessonAccess(currentUser.uid, lessonId);
       setHasAccess(accessResult.hasAccess);
       setAccessError(accessResult.reason);
     } catch (error) {
@@ -154,7 +173,7 @@ const LessonPage = () => {
     setError(null);
 
     try {
-      const progressDocId = `${userId}_${lessonId}`;
+      const progressDocId = `${currentUser?.uid}_${lessonId}`;
       const progressDocRef = doc(db, "lesson_progress", progressDocId);
       const docSnap = await getDoc(progressDocRef);
 
@@ -192,22 +211,22 @@ const LessonPage = () => {
 
 
   const saveLessonProgress = async (blockId, tags, mediaIndex = 0, chatHistory = [], completed = false) => {
-    if (!userId || !lessonId || blockId === null || blockId === undefined) {
-      console.warn("[saveLessonProgress] Not saving progress: blockId is null or undefined", { userId, lessonId, blockId, tags });
+    if (!currentUser?.uid || !lessonId || blockId === null || blockId === undefined) {
+      console.warn("[saveLessonProgress] Not saving progress: blockId is null or undefined", { userId: currentUser?.uid, lessonId, blockId, tags });
       return; // Ensure user, lesson, and blockId are valid
     }
 
     try {
-      const progressDocId = `${userId}_${lessonId}`;
+      const progressDocId = `${currentUser.uid}_${lessonId}`;
       const progressDocRef = doc(db, "lesson_progress", progressDocId);
       
       const progressData = {
-        currentBlockId: blockId,
-        userTags: tags,
-        currentMediaIndex: mediaIndex, // Save media index
-        chatHistory: chatHistory, // Save chat history
-        completed: completed,
-        lastUpdated: Timestamp.now(),
+          currentBlockId: blockId,
+          userTags: tags,
+          currentMediaIndex: mediaIndex, // Save media index
+          chatHistory: chatHistory, // Save chat history
+          completed: completed,
+          lastUpdated: Timestamp.now(),
       };
 
       if (completed) {
@@ -227,9 +246,9 @@ const LessonPage = () => {
   };
 
   const loadPersistentUserTags = async () => {
-    if (!userId) return;
+    if (!currentUser?.uid) return;
     try {
-      const userDocRef = doc(db, "user_traits", userId); // Separate collection
+      const userDocRef = doc(db, "user_traits", currentUser.uid); // Separate collection
       const docSnap = await getDoc(userDocRef);
       if (docSnap.exists()) {
         setPersistentUserTags(docSnap.data().tags || []);
@@ -242,9 +261,9 @@ const LessonPage = () => {
   };
 
   const savePersistentUserTags = async (tags) => {
-    if (!userId) return;
+    if (!currentUser?.uid) return;
     try {
-      const userDocRef = doc(db, "user_traits", userId);
+      const userDocRef = doc(db, "user_traits", currentUser.uid);
       await setDoc(userDocRef, { tags }, { merge: true });
     } catch (error) {
       console.error("Failed to save persistent user tags:", error);
@@ -278,72 +297,75 @@ const LessonPage = () => {
     const runAnalysis = async () => {
       try {
         const optimisticTags = tag ? [...new Set([...userTags, tag])] : [...userTags];
-        const payload = {
-          lessonData: lesson,
-          currentBlock: currentBlock,
-          userResponse: choice,
-          userTags: optimisticTags,
-          chatHistory: chatHistory // Include chat history
-        };
-        const response = await analyzeInteraction(payload);
-        setLastAnalysis(response);
-        setBackendAiMessage(response.ai_message);
-        if (response.ai_message && !response.error) {
-          setAnalysisLog(prevLog => [...prevLog, response.ai_message]);
+        
+        // Use main AI system with storytelling context for choice analysis
+        const storyPrompt = `As Spacey, the AI mission specialist, analyze the Commander's choice and provide engaging feedback.
+
+MISSION CONTEXT:
+- Mission: "${lesson?.title}"
+- Current Situation: "${currentBlock?.content}"
+- Commander's Choice: "${choice.text}"
+- Learning Goal: "${currentBlock?.learning_goal}"
+- Commander's Traits: ${optimisticTags.join(', ')}
+
+STORYTELLING ANALYSIS REQUIRED:
+1. **Immediate Consequences**: What happens next because of this choice?
+2. **Real Space Connection**: How does this relate to actual space missions?
+3. **Character Development**: What does this choice reveal about the Commander?
+4. **Mission Impact**: How does this affect the overall mission success?
+5. **Learning Moment**: What key concept should the Commander take away?
+
+Respond as if you're debriefing with the Commander after a critical mission decision. Use vivid space imagery and real mission examples. Keep it engaging but educational.
+
+Format your response to include both immediate feedback and any trait analysis.`;
+
+        const response = await handleUserChat(storyPrompt, currentUser);
+        
+        if (response?.message) {
+          setLastAnalysis({ ai_message: response.message });
+          setBackendAiMessage(response.message);
+          setAnalysisLog(prevLog => [...prevLog, response.message]);
         }
-        if (response.added_traits || response.removed_traits) {
+
+        // Handle trait updates
+        if (tag) {
             setUserTags(prevTags => {
-                const withAdded = [...new Set([...prevTags, ...(response.added_traits || [])])];
-                const withRemoved = withAdded.filter(t => !(response.removed_traits || []).includes(t));
-                if (currentBlock.next_block || pendingNavigation) {
-                  saveLessonProgress(currentBlock.next_block || pendingNavigation, withRemoved, currentMediaIndex);
-                } else {
-                  console.warn('[handleChoice] Not saving progress: next_block is null', { currentBlock, pendingNavigation });
-                }
-                saveLessonProgress(currentBlock.next_block || pendingNavigation, withRemoved, currentMediaIndex, chatHistory); // Save with updated tags
+            const updatedTags = [...new Set([...prevTags, tag])];
+            saveLessonProgress(next_block || pendingNavigation, updatedTags, currentMediaIndex, chatHistory);
+            
                 // Update persistent traits
-                const updatedPersistentTags = [...new Set([...persistentUserTags, ...withAdded])].filter(t => !response.removed_traits?.includes(t));
+            const updatedPersistentTags = [...new Set([...persistentUserTags, ...updatedTags])];
                 savePersistentUserTags(updatedPersistentTags);
                 setPersistentUserTags(updatedPersistentTags);
-                return withRemoved;
+            
+            return updatedTags;
             });
-        }
-        else {
-          if (currentBlock.next_block || pendingNavigation) {
-            saveLessonProgress(currentBlock.next_block || pendingNavigation, userTags, currentMediaIndex);
           } else {
-            console.warn('[handleChoice] Not saving progress: next_block is null', { currentBlock, pendingNavigation });
-          }
-          saveLessonProgress(currentBlock.next_block || pendingNavigation, userTags, currentMediaIndex, chatHistory);  // Save even if no tag changes
+          saveLessonProgress(next_block || pendingNavigation, userTags, currentMediaIndex, chatHistory);
         }
-        // --- NEW: Save choice to backend for trait tracking ---
-        if (userId && lesson && currentBlock && currentBlock.block_id) {
+
+        // Save choice to backend for tracking
+        if (currentUser?.uid && lesson && currentBlock && currentBlock.block_id) {
           await saveChoice({
-            userId,
+            userId: currentUser.uid,
             missionId: lesson.mission_id,
             blockId: currentBlock.block_id,
             choiceText: choice.text,
             tag: tag || null,
           });
-        } else {
-          console.warn('[handleChoice] Not saving choice: missing userId, lesson, or currentBlock.block_id', { userId, lesson, currentBlock });
         }
-        // --- END NEW ---
+        
         setPageState('feedback');
       } catch (err) {
-        console.error("Failed to analyze interaction:", err);
+        console.error("Failed to analyze choice:", err);
+        // Fallback to navigation without analysis
         handleNavigate(next_block);
         setPageState('idle');
-        if (next_block) {
-          saveLessonProgress(next_block, userTags);
-        } else {
-          console.warn('[handleChoice] Not saving progress on error: next_block is null', { next_block });
-        }
-        saveLessonProgress(next_block, userTags, currentMediaIndex, chatHistory); // Save progress even on failure
+        saveLessonProgress(next_block, userTags, currentMediaIndex, chatHistory);
       }
     };
     runAnalysis();
-  }, [userTags, lesson, currentBlock, handleNavigate, pendingNavigation, saveLessonProgress, currentMediaIndex, persistentUserTags, savePersistentUserTags, chatHistory]);
+  }, [userTags, lesson, currentBlock, handleNavigate, pendingNavigation, saveLessonProgress, currentMediaIndex, persistentUserTags, savePersistentUserTags, chatHistory, currentUser, handleUserChat]);
 
 
   // When lesson is completed (e.g. in Debrief block or similar)
@@ -354,20 +376,20 @@ const LessonPage = () => {
       await saveLessonProgress(currentBlockId, userTags, currentMediaIndex, chatHistory, true);
       console.log('✅ Lesson progress saved as completed');
       
-      // --- NEW: Save final summary to backend for mission completion ---
-      if (userId && lesson) {
+    // --- NEW: Save final summary to backend for mission completion ---
+      if (currentUser?.uid && lesson) {
         await saveFinalSummary({
-          userId,
-          missionId: lesson.mission_id,
-          summary: 'Mission completed', // You can pass a more detailed summary if available
-        });
+          userId: currentUser.uid,
+        missionId: lesson.mission_id,
+        summary: 'Mission completed', // You can pass a more detailed summary if available
+      });
         console.log('✅ Final summary saved to backend');
-      }
-      // --- END NEW ---
+    }
+    // --- END NEW ---
     } catch (error) {
       console.error('❌ Error marking lesson as complete:', error);
     }
-  }, [currentBlockId, userTags, currentMediaIndex, chatHistory, saveLessonProgress, userId, lesson]);
+  }, [currentBlockId, userTags, currentMediaIndex, chatHistory, saveLessonProgress, currentUser?.uid, lesson]);
 
 
   const handleFeedbackComplete = useCallback(() => {
@@ -415,8 +437,8 @@ const LessonPage = () => {
         setCurrentBlockId(lessonData.blocks[0].block_id);
         
         // Reset lesson progress in database but keep completion status
-        if (userId) {
-          const progressDocId = `${userId}_${lessonId}`;
+        if (currentUser?.uid) {
+          const progressDocId = `${currentUser.uid}_${lessonId}`;
           const progressDocRef = doc(db, "lesson_progress", progressDocId);
           const docSnap = await getDoc(progressDocRef);
           
@@ -446,7 +468,7 @@ const LessonPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [lessonId, userId, saveLessonProgress, loadPersistentUserTags, fetchLessonData]);
+  }, [lessonId, currentUser?.uid, saveLessonProgress, loadPersistentUserTags, fetchLessonData]);
 
   const handleJumpToBlock = useCallback((blockId) => {
     setPageState('idle');
@@ -506,7 +528,7 @@ const LessonPage = () => {
   const startLesson = useCallback(() => {
     if (lesson && lesson.blocks && lesson.blocks.length > 0) {
       // Check if progress already exists
-      const progressDocId = `${userId}_${lessonId}`;
+      const progressDocId = `${currentUser?.uid}_${lessonId}`;
       const progressDocRef = doc(db, "lesson_progress", progressDocId);
 
       getDoc(progressDocRef).then((docSnap) => {
@@ -531,7 +553,7 @@ const LessonPage = () => {
         setHasStarted(true);
       });
     }
-  }, [lesson, userId, lessonId, saveLessonProgress]);
+  }, [lesson, currentUser?.uid, lessonId, saveLessonProgress]);
 
   const renderLessonContent = () => {
     if (isLoading || accessLoading) {
@@ -633,33 +655,64 @@ const LessonPage = () => {
     setIsChatOpen(prev => !prev);
   };
 
+  const handleVoiceToggle = useCallback(() => {
+    if (!isRecognitionSupported) {
+      alert('Voice recognition is not supported in your browser');
+      return;
+    }
+
+    if (isListening) {
+      stopListening();
+      setIsVoiceActive(false);
+    } else {
+      startListening();
+      setIsVoiceActive(true);
+    }
+  }, [isListening, isRecognitionSupported, startListening, stopListening]);
+
   const handleSendMessage = useCallback(async (message) => {
     let newHistory = [...chatHistory, { sender: 'user', content: message }];
     setChatHistory(newHistory);
     saveLessonProgress(currentBlockId, userTags, currentMediaIndex, newHistory); // Save user message immediately
 
       try {
-        const payload = {
-          lessonData: lesson,
-          currentBlock: currentBlock,
-          userResponse: { text: message, type: 'chat' },
-          userTags: userTags,
-          chatHistory: newHistory,
-        };
-        const response = await analyzeInteraction(payload);
+      // Use the main AI conversation manager with lesson context
+      const enhancedPrompt = `${message}
 
-        if (response?.ai_message) {
-          newHistory = [...newHistory, { sender: 'ai', content: response.ai_message }];
+[LESSON CONTEXT]
+Mission: "${lesson?.title}"
+Current Block: "${currentBlock?.content}"
+Block Type: ${currentBlock?.type}
+Learning Goal: ${currentBlock?.learning_goal}
+User Traits: ${userTags.join(', ')}
+
+As Spacey, the AI tutor for this space mission, provide storytelling explanations with:
+- Real examples from space exploration
+- Consequences and implications  
+- Engaging narratives that connect to the lesson topic
+- Clear, educational guidance
+- Encouragement and curiosity-building
+
+Respond as if you're right there with the user during their mission.`;
+
+      // Route through main AI system instead of separate lesson controller
+      const response = await handleUserChat(enhancedPrompt, currentUser);
+      
+      if (response?.message) {
+        newHistory = [...newHistory, { sender: 'ai', content: response.message }];
           setChatHistory(newHistory);
-          saveLessonProgress(currentBlockId, userTags, currentMediaIndex, newHistory); // Save updated history with AI response
+        saveLessonProgress(currentBlockId, userTags, currentMediaIndex, newHistory);
         }
 
-        setLastAnalysis(response);
-        setBackendAiMessage(response.ai_message);
       } catch (error) {
         console.error("Failed to send chat message:", error);
+      // Fallback response
+      const fallbackResponse = "I'm having trouble connecting to my systems right now. Please try again in a moment.";
+      newHistory = [...newHistory, { sender: 'ai', content: fallbackResponse }];
+      setChatHistory(newHistory);
+      saveLessonProgress(currentBlockId, userTags, currentMediaIndex, newHistory);
       }
-  }, [chatHistory, lesson, currentBlock, userTags, saveLessonProgress, currentBlockId, currentMediaIndex]);
+  }, [chatHistory, lesson, currentBlock, userTags, saveLessonProgress, currentBlockId, currentMediaIndex, currentUser, handleUserChat]);
 
 
   return (
@@ -672,13 +725,6 @@ const LessonPage = () => {
             <div className="flex items-center gap-2">
               {lessonId && <LessonProgressIndicator lessonId={lessonId} />} {/* Render here */}
               {lessonNavControls}
-              <button
-                onClick={handleChatToggle}
-                className="font-mono text-xs bg-blue-500/20 text-blue-300 px-3 py-1.5 rounded-md hover:bg-blue-500/40 transition-colors flex items-center gap-1.5"
-              >
-                <MessageSquare size={16} />
-                Chat
-              </button>
             </div>
           ) : null
         }
@@ -700,69 +746,178 @@ const LessonPage = () => {
         <div className="w-full max-w-7xl mx-auto mb-8">
           {/* Back Button - positioned to avoid overlap */}
           <div className="mb-6">
-            <Link to="/dashboard" className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
-              <ArrowLeft size={20} />
-              Back to Dashboard
-            </Link>
-          </div>
+          <Link to="/dashboard" className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
+            <ArrowLeft size={20} />
+            Back to Dashboard
+          </Link>
+        </div>
 
           {/* Mission Title Header - centered */}
           {lesson && !isLoading && !accessLoading && hasAccess && (
             <div className="text-center">
               <h1 className="text-4xl lg:text-5xl font-bold text-cyan-300 mb-2 tracking-wide">
-                {lesson.title}
-              </h1>
+                  {lesson.title}
+                </h1>
               <p className="text-gray-400 font-mono text-lg">
-                Mission ID: {lesson.mission_id}
-              </p>
-            </div>
-          )}
+                  Mission ID: {lesson.mission_id}
+                </p>
+              </div>
+            )}
         </div>
 
         {/* Main Content Area - using full width */}
         <div className="w-full max-w-7xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-8 min-h-[500px]">
             
-            {/* Left Column: Camera Feed */}
-            <div className="lg:col-span-1 space-y-4">
-              {hasAccess && !isLoading && !accessLoading && (
-                <div className="w-full">
-                  <h3 className="text-lg font-semibold text-cyan-300 mb-3 text-center">Mission Monitor</h3>
-                  <div className="aspect-square w-full max-w-sm mx-auto lg:max-w-none">
-                    <CameraFeed
-                      ref={webcamRef}
-                      onEmotionDetected={handleEmotionDetected}
-                      enableEmotionDetection={true}
-                      compact={true}
-                      className="w-full h-full rounded-lg"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* Left Column: AI Avatar in Tutor Mode */}
+            <div className="lg:col-span-1">
+              <div className="relative w-full h-80 lg:h-[500px]">
+                <AIAvatar
+                  webcamRef={webcamRef}
+                  userInfo={currentUser}
+                  enablePersonalization={true}
+                  mode="lesson"
+                  lessonContext={lesson}
+                  compact={false}
+                  className="w-full h-full"
+                />
+              </div>
+          </div>
 
             {/* Center Column: Lesson Content - taking more space */}
             <div className="lg:col-span-2">
-              {renderLessonContent()}
-            </div>
+            {renderLessonContent()}
+          </div>
 
-            {/* Right Column: Character Model */}
-            <div className="lg:col-span-1">
-              <div className="relative w-full h-80 lg:h-[500px]">
-                <CharacterModel />
-              </div>
+            {/* Right Column: Mission Monitor with Chat & Voice */}
+            <div className="lg:col-span-1 space-y-4">
+              {hasAccess && !isLoading && !accessLoading && (
+                <>
+                  <div className="w-full">
+                    <h3 className="text-lg font-semibold text-cyan-300 mb-3 text-center">Mission Monitor</h3>
+                    <div className="aspect-square w-full max-w-sm mx-auto lg:max-w-none">
+                      <CameraFeed
+                        ref={webcamRef}
+                        onEmotionDetected={handleEmotionDetected}
+                        enableEmotionDetection={true}
+                        compact={true}
+                        className="w-full h-full rounded-lg"
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Chat & Voice Controls */}
+                  <div className="w-full space-y-3">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleChatToggle}
+                        className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-semibold rounded-lg transition-colors ${
+                          isChatOpen 
+                            ? 'bg-blue-500/30 text-blue-300 border border-blue-400/50' 
+                            : 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30'
+                        }`}
+                      >
+                        <MessageSquare size={16} />
+                        Chat
+                      </button>
+                      <button
+                        onClick={handleVoiceToggle}
+                        className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-semibold rounded-lg transition-colors ${
+                          isVoiceActive 
+                            ? 'bg-red-500/30 text-red-300 border border-red-400/50 animate-pulse' 
+                            : 'bg-green-500/20 text-green-300 hover:bg-green-500/30'
+                        }`}
+                        disabled={!isRecognitionSupported}
+                        title={!isRecognitionSupported ? 'Voice recognition not supported' : ''}
+                      >
+                        {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+                        {isListening ? 'Stop' : 'Voice'}
+                      </button>
+                    </div>
+                    
+                    {/* Voice Status */}
+                    {isListening && (
+                      <div className="bg-red-500/20 border border-red-400/50 rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
+                          <span className="text-red-300 text-sm font-semibold">Listening...</span>
+                        </div>
+                        {transcript && (
+                          <p className="text-white text-sm italic">"{transcript}"</p>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Integrated Chat Interface */}
+                    {isChatOpen && (
+                      <div className="bg-black/40 border border-gray-600/50 rounded-lg p-4 space-y-3">
+                        <h4 className="text-cyan-300 font-semibold text-sm">Mission Chat</h4>
+                        
+                        {/* Chat History */}
+                        <div className="max-h-48 overflow-y-auto space-y-2">
+                          {chatHistory.length === 0 ? (
+                            <p className="text-gray-400 text-sm italic">Ask me anything about the mission...</p>
+                          ) : (
+                            chatHistory.slice(-5).map((msg, index) => (
+                              <div key={index} className={`text-sm p-2 rounded ${
+                                msg.sender === 'user' 
+                                  ? 'bg-blue-500/20 text-blue-200 ml-2' 
+                                  : 'bg-gray-700/50 text-gray-200 mr-2'
+                              }`}>
+                                <span className="font-semibold text-xs opacity-70">
+                                  {msg.sender === 'user' ? 'You' : 'Spacey'}:
+                                </span>
+                                <br />
+                                {msg.content}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                        
+                        {/* Chat Input */}
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="Ask about the mission..."
+                            className="flex-1 px-3 py-2 bg-gray-800/50 border border-gray-600/50 rounded text-white text-sm"
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter' && e.target.value.trim()) {
+                                handleSendMessage(e.target.value.trim());
+                                e.target.value = '';
+                              }
+                            }}
+                          />
+                          <button
+                            onClick={() => {
+                              const input = event.target.previousElementSibling;
+                              if (input.value.trim()) {
+                                handleSendMessage(input.value.trim());
+                                input.value = '';
+                              }
+                            }}
+                            className="px-3 py-2 bg-cyan-600 text-white rounded text-sm hover:bg-cyan-700 transition-colors"
+                          >
+                            Send
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
 
           </div>
         </div>
       </main>
       
-      <ChatPanel
+      {/* Remove the old ChatPanel component since we have integrated chat */}
+      {/* <ChatPanel
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
         chatHistory={chatHistory}
         onSendMessage={handleSendMessage}
-      />
+      /> */}
 
       {/* Log Button */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">

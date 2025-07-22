@@ -1,0 +1,246 @@
+{
+    "mission_id": "build-satellite",
+    "title": "Build Your Own Satellite",
+    "total_blocks": 12,
+    "blocks": [
+        {
+            "block_id": "Mission Brief",
+            "type": "narration",
+            "content": "You are leading the satellite design team at Space Systems Corp. Your mission: design and build a weather monitoring satellite for Earth orbit.",
+            "media": {
+                "image": "/images/mars-scene.jpg",
+                "audio": "/audio/ai_guidance_chime.mp3",
+                "3d_model": "/models/greet-untitled.glb"
+            },
+            "learning_goal": "Introduce satellite mission objectives and the player's role as project lead.",
+            "llm_instruction": "Narrate the satellite project briefing. Set an inspiring, technical tone. Address the student as 'Project Leader'. Introduce the challenge of building a weather satellite within budget and timeline constraints.",
+            "next_block": "Design Phase"
+        },
+        {
+            "block_id": "Design Phase",
+            "type": "choice",
+            "content": "First decision: Which satellite architecture will you choose? Budget: $50M. Timeline: 18 months.",
+            "media": {
+                "image": "/images/base_power_schematic.jpg"
+            },
+            "choices": [
+                {
+                    "text": "CubeSat design - compact and cost-effective",
+                    "next_block": "Power System Choice",
+                    "tag": "cautious",
+                    "ai_reaction": "Player chose the economical CubeSat approach."
+                },
+                {
+                    "text": "Traditional large satellite - more capabilities",
+                    "next_block": "Power System Choice", 
+                    "tag": "bold",
+                    "ai_reaction": "Player chose the ambitious traditional satellite approach."
+                }
+            ],
+            "learning_goal": "Understand different satellite architectures and their trade-offs."
+        },
+        {
+            "block_id": "Power System Choice",
+            "type": "choice",
+            "content": "Next critical decision: Power generation system. This affects the satellite's lifetime and capabilities.",
+            "media": {
+                "image": "/images/solar_flare_view.jpg"
+            },
+            "choices": [
+                {
+                    "text": "Solar panels with battery backup",
+                    "next_block": "Communication Challenge",
+                    "tag": "cautious",
+                    "ai_reaction": "Player chose reliable solar power technology."
+                },
+                {
+                    "text": "Advanced nuclear power source",
+                    "next_block": "Communication Challenge",
+                    "tag": "bold",
+                    "ai_reaction": "Player chose cutting-edge nuclear power technology."
+                }
+            ],
+            "learning_goal": "Learn about satellite power systems and their implications for mission duration."
+        },
+        {
+            "block_id": "Communication Challenge",
+            "type": "choice",
+            "content": "Communication system design challenge: How will your satellite transmit weather data back to Earth?",
+            "choices": [
+                {
+                    "text": "High-frequency radio transmission",
+                    "next_block": "Orbital Mechanics",
+                    "tag": "cautious",
+                    "ai_reaction": "Player chose proven radio communication technology."
+                },
+                {
+                    "text": "Laser communication system",
+                    "next_block": "Orbital Mechanics",
+                    "tag": "creative",
+                    "ai_reaction": "Player chose innovative laser communication."
+                }
+            ],
+            "learning_goal": "Explore satellite communication technologies and data transmission methods."
+        },
+        {
+            "block_id": "Orbital Mechanics",
+            "type": "choice",
+            "content": "Orbital selection: Different orbits provide different coverage and mission capabilities.",
+            "media": {
+                "image": "/images/mars-scene.jpg"
+            },
+            "choices": [
+                {
+                    "text": "Low Earth Orbit (LEO) - 400km altitude",
+                    "next_block": "Launch Crisis",
+                    "tag": "cautious",
+                    "ai_reaction": "Player chose stable Low Earth Orbit."
+                },
+                {
+                    "text": "Geostationary orbit - 35,786km altitude",
+                    "next_block": "Launch Crisis",
+                    "tag": "bold",
+                    "ai_reaction": "Player chose ambitious geostationary orbit."
+                }
+            ],
+            "learning_goal": "Understand orbital mechanics and how orbit selection affects satellite missions."
+        },
+        {
+            "block_id": "Launch Crisis",
+            "type": "choice",
+            "content": "Crisis! Your primary launch vehicle has been delayed by 6 months. What's your contingency plan?",
+            "media": {
+                "audio": "/audio/emergency_klaxon.mp3"
+            },
+            "choices": [
+                {
+                    "text": "Wait for the original launcher",
+                    "next_block": "Team Feedback",
+                    "tag": "cautious",
+                    "ai_reaction": "Player chose to stick with the original plan."
+                },
+                {
+                    "text": "Switch to an alternative launch provider",
+                    "next_block": "Team Feedback",
+                    "tag": "creative",
+                    "ai_reaction": "Player chose adaptive problem-solving."
+                }
+            ],
+            "learning_goal": "Learn about launch options and project management in space missions."
+        },
+        {
+            "block_id": "Team Feedback",
+            "type": "reflection",
+            "content": "Your engineering team responds to your leadership approach:",
+            "dynamic_content": [
+                {
+                    "condition_tags": ["bold", "creative"],
+                    "text": "Your team appreciates your innovative and bold decision-making.",
+                    "llm_instruction": "Elaborate on how the student's bold and innovative choices have inspired confidence in the engineering team. Connect this to specific satellite design decisions."
+                },
+                {
+                    "condition_tags": ["cautious"],
+                    "text": "Your team values your careful, methodical approach to satellite design.",
+                    "llm_instruction": "Elaborate on how the student's cautious and systematic approach has built trust with the engineering team. Connect this to risk management."
+                }
+            ],
+            "next_block": "Testing Phase"
+        },
+        {
+            "block_id": "Testing Phase",
+            "type": "choice",
+            "content": "Pre-launch testing reveals a potential issue with thermal management. Time is running short.",
+            "choices": [
+                {
+                    "text": "Extensive additional testing",
+                    "next_block": "Launch Decision",
+                    "tag": "cautious",
+                    "ai_reaction": "Player prioritized thorough testing protocols."
+                },
+                {
+                    "text": "Launch with current specifications",
+                    "next_block": "Launch Decision",
+                    "tag": "bold",
+                    "ai_reaction": "Player chose to proceed with calculated risk."
+                }
+            ],
+            "learning_goal": "Understand the importance of testing and quality assurance in satellite missions."
+        },
+        {
+            "block_id": "Launch Decision",
+            "type": "narration",
+            "content": "Launch day arrives. Your satellite design choices will now be tested in the harsh environment of space.",
+            "dynamic_outcome": [
+                {
+                    "condition_tags": ["cautious"],
+                    "text": "Your careful planning pays off - the satellite deploys successfully and begins transmitting weather data.",
+                    "llm_instruction": "Narrate a successful launch outcome emphasizing how careful planning led to mission success."
+                },
+                {
+                    "condition_tags": ["bold"],
+                    "text": "Your ambitious design faces challenges, but innovative solutions keep the mission on track.",
+                    "llm_instruction": "Narrate a challenging but ultimately successful outcome, highlighting how bold choices required creative problem-solving."
+                }
+            ],
+            "learning_goal": "Experience the culmination of satellite design decisions and their real-world consequences.",
+            "next_block": "Mission Analysis"
+        },
+        {
+            "block_id": "Mission Analysis",
+            "type": "reflection",
+            "content": "Mission Control analyzes your satellite's performance:",
+            "dynamic_content": [
+                {
+                    "condition_tags": ["bold", "creative"],
+                    "text": "Your innovative approach created a groundbreaking satellite system.",
+                    "llm_instruction": "Reflect on how the student's innovative and bold choices led to technological breakthroughs in satellite design."
+                },
+                {
+                    "condition_tags": ["cautious"],
+                    "text": "Your systematic approach ensured a reliable, long-lasting satellite mission.",
+                    "llm_instruction": "Reflect on how the student's cautious and methodical approach ensured mission reliability and longevity."
+                }
+            ],
+            "learning_goal": "Reflect on the relationship between design philosophy and mission outcomes.",
+            "next_block": "Knowledge Check"
+        },
+        {
+            "block_id": "Knowledge Check",
+            "type": "quiz",
+            "content": "Test your satellite engineering knowledge:",
+            "questions": [
+                {
+                    "question_text": "What is the main advantage of a CubeSat design?",
+                    "options": [
+                        {"text": "Lower cost and faster development time", "is_correct": true},
+                        {"text": "Higher power generation capability", "is_correct": false},
+                        {"text": "Better radiation shielding", "is_correct": false}
+                    ],
+                    "correct_feedback": "Correct! CubeSats are designed for cost-efficiency and rapid deployment.",
+                    "incorrect_feedback": "Think about the primary benefits of miniaturized satellite systems.",
+                    "llm_feedback_instruction": "Provide personalized feedback about CubeSat advantages, relating to cost-effectiveness and development speed."
+                },
+                {
+                    "question_text": "Why is orbital selection critical for satellite missions?",
+                    "options": [
+                        {"text": "It determines coverage area, mission duration, and communication requirements", "is_correct": true},
+                        {"text": "It only affects the launch cost", "is_correct": false},
+                        {"text": "It determines the satellite's color", "is_correct": false}
+                    ],
+                    "correct_feedback": "Exactly! Orbital mechanics drive fundamental mission parameters.",
+                    "incorrect_feedback": "Consider how different orbits affect what the satellite can accomplish.",
+                    "llm_feedback_instruction": "Explain how orbital mechanics influence mission design and capabilities."
+                }
+            ],
+            "learning_goal": "Assess understanding of satellite design principles and orbital mechanics.",
+            "next_block": "Mission Complete"
+        },
+        {
+            "block_id": "Mission Complete",
+            "type": "narration",
+            "content": "Mission accomplished! Your weather satellite is now providing crucial data for climate research and weather prediction.",
+            "learning_goal": "Celebrate mission completion and reinforce learning achievements.",
+            "next_block": null
+        }
+    ]
+} 

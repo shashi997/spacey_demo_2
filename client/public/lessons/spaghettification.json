@@ -1,0 +1,223 @@
+{
+    "mission_id": "spaghettification",
+    "title": "Spaghettification",
+    "total_blocks": 11,
+    "blocks": [
+        {
+            "block_id": "Black Hole Discovery",
+            "type": "narration",
+            "content": "You are the lead physicist aboard the research vessel 'Event Horizon'. Your team has discovered a previously unknown black hole. Prepare for a journey into extreme physics.",
+            "media": {
+                "image": "/images/mars_base_dark.png",
+                "audio": "/audio/ai_guidance_chime.mp3",
+                "3d_model": "/models/breath-idle.glb"
+            },
+            "learning_goal": "Introduce black hole physics and the concept of extreme gravitational environments.",
+            "llm_instruction": "Set an awe-inspiring, scientific tone. Address the student as 'Chief Scientist'. Introduce the mystery and danger of black hole exploration.",
+            "next_block": "Approach Decision"
+        },
+        {
+            "block_id": "Approach Decision",
+            "type": "choice",
+            "content": "Your ship is 1000 km from the black hole's event horizon. How close will you venture to study this cosmic phenomenon?",
+            "media": {
+                "image": "/images/solar_flare_view.jpg"
+            },
+            "choices": [
+                {
+                    "text": "Maintain safe distance - use remote sensors",
+                    "next_block": "Observation Phase",
+                    "tag": "cautious",
+                    "ai_reaction": "Player prioritized crew safety over direct observation."
+                },
+                {
+                    "text": "Move closer for detailed observations",
+                    "next_block": "Observation Phase",
+                    "tag": "bold",
+                    "ai_reaction": "Player chose to push the boundaries of exploration."
+                }
+            ],
+            "learning_goal": "Understand the risks and benefits of studying black holes at different distances."
+        },
+        {
+            "block_id": "Observation Phase",
+            "type": "choice",
+            "content": "Strange readings! Time dilation effects are stronger than expected. How do you proceed with the investigation?",
+            "choices": [
+                {
+                    "text": "Deploy robotic probe to measure effects",
+                    "next_block": "Tidal Forces",
+                    "tag": "cautious",
+                    "ai_reaction": "Player chose scientific methodology over direct risk."
+                },
+                {
+                    "text": "Volunteer for solo reconnaissance mission",
+                    "next_block": "Tidal Forces",
+                    "tag": "bold",
+                    "ai_reaction": "Player chose direct exploration despite dangers."
+                }
+            ],
+            "learning_goal": "Explore the concept of time dilation near massive objects."
+        },
+        {
+            "block_id": "Tidal Forces",
+            "type": "choice",
+            "content": "Your probe/mission reveals extreme tidal forces that stretch and compress matter. This is spaghettification in action!",
+            "media": {
+                "image": "/images/burnt_circuit.gif"
+            },
+            "choices": [
+                {
+                    "text": "Calculate the mathematical model",
+                    "next_block": "Scientific Analysis",
+                    "tag": "cautious",
+                    "ai_reaction": "Player focused on theoretical understanding."
+                },
+                {
+                    "text": "Test materials under extreme stress",
+                    "next_block": "Scientific Analysis",
+                    "tag": "creative",
+                    "ai_reaction": "Player pursued experimental verification."
+                }
+            ],
+            "learning_goal": "Understand tidal forces and how they create the spaghettification effect."
+        },
+        {
+            "block_id": "Scientific Analysis",
+            "type": "reflection",
+            "content": "Your research approach reveals fascinating insights:",
+            "dynamic_content": [
+                {
+                    "condition_tags": ["bold", "creative"],
+                    "text": "Your daring approach has yielded unprecedented data about black hole physics.",
+                    "llm_instruction": "Elaborate on how bold experimental approaches have led to breakthrough discoveries in black hole research."
+                },
+                {
+                    "condition_tags": ["cautious"],
+                    "text": "Your careful theoretical analysis provides solid foundations for understanding black holes.",
+                    "llm_instruction": "Elaborate on how systematic theoretical work builds reliable knowledge about extreme physics."
+                }
+            ],
+            "next_block": "Event Horizon Study"
+        },
+        {
+            "block_id": "Event Horizon Study",
+            "type": "choice",
+            "content": "The event horizon looms ahead - the point of no return. What aspect will you focus your final observations on?",
+            "media": {
+                "image": "/images/mars_base_dark.png"
+            },
+            "choices": [
+                {
+                    "text": "Study Hawking radiation emission",
+                    "next_block": "Quantum Effects",
+                    "tag": "creative",
+                    "ai_reaction": "Player chose quantum mechanics focus."
+                },
+                {
+                    "text": "Measure gravitational wave signatures",
+                    "next_block": "Quantum Effects",
+                    "tag": "cautious",
+                    "ai_reaction": "Player chose classical physics measurements."
+                }
+            ],
+            "learning_goal": "Learn about event horizons and the boundary between observable and unobservable space."
+        },
+        {
+            "block_id": "Quantum Effects",
+            "type": "choice",
+            "content": "Quantum effects near the black hole challenge our understanding of physics. How do you interpret these findings?",
+            "choices": [
+                {
+                    "text": "Information paradox - information is lost",
+                    "next_block": "Research Conclusion",
+                    "tag": "bold",
+                    "ai_reaction": "Player embraced radical physics implications."
+                },
+                {
+                    "text": "Information conservation - encoded in radiation",
+                    "next_block": "Research Conclusion",
+                    "tag": "cautious",
+                    "ai_reaction": "Player maintained theoretical consistency."
+                }
+            ],
+            "learning_goal": "Explore the information paradox and quantum effects near black holes."
+        },
+        {
+            "block_id": "Research Conclusion",
+            "type": "narration",
+            "content": "Your expedition has revolutionized our understanding of black holes and extreme physics. The universe's most mysterious objects are yielding their secrets.",
+            "dynamic_outcome": [
+                {
+                    "condition_tags": ["bold"],
+                    "text": "Your bold approach has led to paradigm-shifting discoveries that will change physics forever.",
+                    "llm_instruction": "Narrate groundbreaking discoveries resulting from bold exploration of black hole physics."
+                },
+                {
+                    "condition_tags": ["cautious"],
+                    "text": "Your systematic approach has built a solid foundation for future black hole research.",
+                    "llm_instruction": "Narrate how careful methodology has advanced our understanding of black hole physics."
+                }
+            ],
+            "learning_goal": "Reflect on the importance of scientific exploration in understanding extreme physics.",
+            "next_block": "Physics Reflection"
+        },
+        {
+            "block_id": "Physics Reflection",
+            "type": "reflection",
+            "content": "The implications of your black hole research:",
+            "dynamic_content": [
+                {
+                    "condition_tags": ["bold", "creative"],
+                    "text": "Your willingness to challenge physics boundaries has opened new frontiers.",
+                    "llm_instruction": "Reflect on how pushing scientific boundaries leads to revolutionary discoveries in extreme physics."
+                },
+                {
+                    "condition_tags": ["cautious"],
+                    "text": "Your methodical approach ensures our understanding of black holes is built on solid ground.",
+                    "llm_instruction": "Reflect on how careful scientific methodology builds reliable knowledge about extreme physics."
+                }
+            ],
+            "learning_goal": "Consider the role of different research approaches in advancing physics.",
+            "next_block": "Knowledge Assessment"
+        },
+        {
+            "block_id": "Knowledge Assessment",
+            "type": "quiz",
+            "content": "Test your understanding of black hole physics:",
+            "questions": [
+                {
+                    "question_text": "What causes spaghettification near a black hole?",
+                    "options": [
+                        {"text": "Extreme tidal forces that stretch objects due to gravitational gradients", "is_correct": true},
+                        {"text": "High temperature plasma around the black hole", "is_correct": false},
+                        {"text": "Magnetic field interactions", "is_correct": false}
+                    ],
+                    "correct_feedback": "Correct! Tidal forces from gravity gradients cause spaghettification.",
+                    "incorrect_feedback": "Think about how gravity changes with distance from a massive object.",
+                    "llm_feedback_instruction": "Explain tidal forces and gravitational gradients in relation to spaghettification."
+                },
+                {
+                    "question_text": "What is the event horizon of a black hole?",
+                    "options": [
+                        {"text": "The boundary beyond which nothing can escape, not even light", "is_correct": true},
+                        {"text": "The visible surface of the black hole", "is_correct": false},
+                        {"text": "The region where matter gets hot and glows", "is_correct": false}
+                    ],
+                    "correct_feedback": "Exactly! The event horizon is the point of no return.",
+                    "incorrect_feedback": "Consider what defines the boundary around a black hole.",
+                    "llm_feedback_instruction": "Clarify the concept of event horizons and why they represent a point of no return."
+                }
+            ],
+            "learning_goal": "Assess understanding of key black hole physics concepts.",
+            "next_block": "Mission Complete"
+        },
+        {
+            "block_id": "Mission Complete",
+            "type": "narration",
+            "content": "Your black hole expedition has contributed invaluable data to our understanding of the universe's most extreme phenomena. The cosmos holds fewer mysteries thanks to your work.",
+            "learning_goal": "Celebrate completion of black hole physics exploration.",
+            "next_block": null
+        }
+    ]
+} 

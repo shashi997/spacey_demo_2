@@ -1,6 +1,6 @@
 // e:\Spacey-Intern\spacey_second_demo\spacey_demo_2\client\src\pages\LessonPage.jsx
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Loader, AlertTriangle, RefreshCw, BookOpen, MessageSquare, Play } from 'lucide-react';
 
@@ -27,6 +27,8 @@ import useAudio from '../hooks/useAudio';
 import { db, auth } from '../firebaseConfig';  // Import Firebase services
 import { doc, setDoc, getDoc, Timestamp } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth'; // Listen for auth changes
+import CameraFeed from '../components/ui/CameraFeed';
+import { hasLessonAccess, isLessonCompleted } from '../utils/lessonProgression';
 
 
 const fetchLessonData = async (lessonId) => {
@@ -54,6 +56,14 @@ const LessonPage = () => {
   const [persistentUserTags, setPersistentUserTags] = useState([]); // For global traits
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);  // For media progress
 
+  // --- ACCESS CONTROL STATE ---
+  const [hasAccess, setHasAccess] = useState(true);
+  const [accessError, setAccessError] = useState(null);
+  const [accessLoading, setAccessLoading] = useState(true);
+
+  // --- CAMERA STATE ---
+  const webcamRef = useRef(null);
+  const [emotionData, setEmotionData] = useState(null);
 
   // --- STATE FOR UI FLOW & LOGS ---
   const [pageState, setPageState] = useState('idle'); 
@@ -79,12 +89,36 @@ const LessonPage = () => {
 
   useEffect(() => {
     if (lessonId && userId) {
+      checkLessonAccess();
       loadLessonProgress();
       loadPersistentUserTags();
     } else if (lessonId && !userId) {  // Only load from scratch if no user is logged in
     loadLesson();
   }
   }, [lessonId, userId]);
+
+  // Check lesson access when user and lesson are available
+  const checkLessonAccess = async () => {
+    if (!userId || !lessonId) return;
+    
+    setAccessLoading(true);
+    try {
+      const accessResult = await hasLessonAccess(userId, lessonId);
+      setHasAccess(accessResult.hasAccess);
+      setAccessError(accessResult.reason);
+    } catch (error) {
+      console.error('Error checking lesson access:', error);
+      setHasAccess(false);
+      setAccessError('Error checking lesson access');
+    } finally {
+      setAccessLoading(false);
+    }
+  };
+
+  // Handle emotion detection from camera
+  const handleEmotionDetected = useCallback((emotionInfo) => {
+    setEmotionData(emotionInfo);
+  }, []);
 
   const loadLesson = useCallback(() => {
     setIsLoading(true);
@@ -166,20 +200,29 @@ const LessonPage = () => {
     try {
       const progressDocId = `${userId}_${lessonId}`;
       const progressDocRef = doc(db, "lesson_progress", progressDocId);
-      await setDoc(
-        progressDocRef,
-        {
-          currentBlockId: blockId,
-          userTags: tags,
-          currentMediaIndex: mediaIndex, // Save media index
-          chatHistory: chatHistory, // Save chat history
-          completed: completed,
-          lastUpdated: Timestamp.now(),
-        },
-        { merge: true }
-      );
+      
+      const progressData = {
+        currentBlockId: blockId,
+        userTags: tags,
+        currentMediaIndex: mediaIndex, // Save media index
+        chatHistory: chatHistory, // Save chat history
+        completed: completed,
+        lastUpdated: Timestamp.now(),
+      };
+
+      if (completed) {
+        progressData.completedAt = Timestamp.now();
+        console.log(`📚 Saving lesson completion for ${lessonId}:`, progressData);
+      }
+
+      await setDoc(progressDocRef, progressData, { merge: true });
+      
+      if (completed) {
+        console.log(`✅ Lesson ${lessonId} marked as completed in database`);
+      }
     } catch (error) {
       console.error("Failed to save lesson progress:", error);
+      throw error; // Re-throw to handle in calling function
     }
   };
 
@@ -304,18 +347,27 @@ const LessonPage = () => {
 
 
   // When lesson is completed (e.g. in Debrief block or similar)
-  const markLessonAsComplete = useCallback(() => {
-    saveLessonProgress(currentBlockId, userTags, true); // Mark as completed.
-    // --- NEW: Save final summary to backend for mission completion ---
-    if (userId && lesson) {
-      saveFinalSummary({
-        userId,
-        missionId: lesson.mission_id,
-        summary: 'Mission completed', // You can pass a more detailed summary if available
-      });
+  const markLessonAsComplete = useCallback(async () => {
+    console.log('🎉 Marking lesson as complete:', lesson?.mission_id);
+    try {
+      // Mark as completed with all params
+      await saveLessonProgress(currentBlockId, userTags, currentMediaIndex, chatHistory, true);
+      console.log('✅ Lesson progress saved as completed');
+      
+      // --- NEW: Save final summary to backend for mission completion ---
+      if (userId && lesson) {
+        await saveFinalSummary({
+          userId,
+          missionId: lesson.mission_id,
+          summary: 'Mission completed', // You can pass a more detailed summary if available
+        });
+        console.log('✅ Final summary saved to backend');
+      }
+      // --- END NEW ---
+    } catch (error) {
+      console.error('❌ Error marking lesson as complete:', error);
     }
-    // --- END NEW ---
-  }, [currentBlockId, userTags, saveLessonProgress, userId, lesson]);
+  }, [currentBlockId, userTags, currentMediaIndex, chatHistory, saveLessonProgress, userId, lesson]);
 
 
   const handleFeedbackComplete = useCallback(() => {
@@ -340,14 +392,61 @@ const LessonPage = () => {
     return bestMatch.score >= 0 ? bestMatch.text : (defaultItem?.text || '');
   }, [userTags]);
 
-  const handleReplay = useCallback(() => {
-    loadLesson();
-    loadPersistentUserTags().then(() => { // Ensure persistent tags are loaded first
-      setUserTags(persistentUserTags); // Apply persistent traits to current lesson
-      setChatHistory([]); // Reset chat history on replay
-    });
+  const handleReplay = useCallback(async () => {
+    // Reset all lesson state
+    setIsLoading(true);
+    setError(null);
+    setBackendAiMessage(null);
+    setLastAnalysis(null);
+    setPageState('idle');
+    setPendingNavigation(null);
+    setAnalysisLog([]);
+    setCurrentMediaIndex(0);
+    setChatHistory([]);
+    setUserTags([]);
+    setHasStarted(false);
     setIsDebuggerOpen(false);
-  }, [loadLesson, loadPersistentUserTags, persistentUserTags, setUserTags]);
+    
+    try {
+      // Load fresh lesson data
+      const lessonData = await fetchLessonData(lessonId);
+      if (lessonData && lessonData.blocks && lessonData.blocks.length > 0) {
+        setLesson(lessonData);
+        setCurrentBlockId(lessonData.blocks[0].block_id);
+        
+        // Reset lesson progress in database but keep completion status
+        if (userId) {
+          const progressDocId = `${userId}_${lessonId}`;
+          const progressDocRef = doc(db, "lesson_progress", progressDocId);
+          const docSnap = await getDoc(progressDocRef);
+          
+          let wasCompleted = false;
+          if (docSnap.exists()) {
+            wasCompleted = docSnap.data().completed || false;
+          }
+          
+          // Reset progress but maintain completion status if it was completed
+          await saveLessonProgress(
+            lessonData.blocks[0].block_id, 
+            [], 
+            0, 
+            [], 
+            wasCompleted // Keep completion status
+          );
+        }
+        
+        // Load persistent tags
+        await loadPersistentUserTags();
+      } else {
+        setError(`Mission "${lessonId}" not found or is invalid.`);
+      }
+    } catch (error) {
+      console.error('Error during lesson replay:', error);
+      setError('Failed to restart lesson');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [lessonId, userId, saveLessonProgress, loadPersistentUserTags, fetchLessonData]);
 
   const handleJumpToBlock = useCallback((blockId) => {
     setPageState('idle');
@@ -384,7 +483,11 @@ const LessonPage = () => {
 
         switch (augmentedBlock.type) {
           case 'narration':
-            if (augmentedBlock.block_id === "Debrief") {
+            // Mark lesson as complete for final blocks
+            if (augmentedBlock.block_id === "Debrief" || 
+                augmentedBlock.block_id === "Mission Complete" || 
+                !augmentedBlock.next_block) {
+              console.log('🎯 Triggering lesson completion for block:', augmentedBlock.block_id);
               markLessonAsComplete();
             }
             return <NarrationBlock block={augmentedBlock} onNavigate={handleNavigate} getDynamicText={getDynamicText} userTags={userTags} />;
@@ -431,11 +534,24 @@ const LessonPage = () => {
   }, [lesson, userId, lessonId, saveLessonProgress]);
 
   const renderLessonContent = () => {
-    if (isLoading) {
+    if (isLoading || accessLoading) {
       return (
         <div className="flex flex-col items-center justify-center gap-4 text-cyan-400/80 h-48">
           <Loader size={48} className="animate-spin" />
           <p className="font-mono">Loading Mission...</p>
+        </div>
+      );
+    }
+
+    if (!hasAccess) {
+      return (
+        <div className="flex flex-col items-center justify-center gap-4 text-yellow-400/80 h-48 bg-yellow-900/20 p-8 rounded-lg border border-yellow-400/30">
+          <AlertTriangle size={48} />
+          <h3 className="text-xl font-bold text-yellow-300">Mission Locked</h3>
+          <p className="font-mono text-center">{accessError}</p>
+          <Link to="/dashboard" className="mt-4 px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors">
+            Return to Dashboard
+          </Link>
         </div>
       );
     }
@@ -578,34 +694,66 @@ const LessonPage = () => {
         userTags={userTags}
       />
 
-      <main className="relative z-10 flex items-start justify-center min-h-screen pt-24 pb-12 px-4 md:px-8">
-        <div className="absolute top-24 left-8 z-20">
-          <Link to="/dashboard" className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
-            <ArrowLeft size={20} />
-            Back to Dashboard
-          </Link>
+      <main className="relative z-10 min-h-screen pt-20 pb-24 px-4 md:px-8">
+        
+        {/* Header Section with Back Button and Title */}
+        <div className="w-full max-w-7xl mx-auto mb-8">
+          {/* Back Button - positioned to avoid overlap */}
+          <div className="mb-6">
+            <Link to="/dashboard" className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
+              <ArrowLeft size={20} />
+              Back to Dashboard
+            </Link>
+          </div>
+
+          {/* Mission Title Header - centered */}
+          {lesson && !isLoading && !accessLoading && hasAccess && (
+            <div className="text-center">
+              <h1 className="text-4xl lg:text-5xl font-bold text-cyan-300 mb-2 tracking-wide">
+                {lesson.title}
+              </h1>
+              <p className="text-gray-400 font-mono text-lg">
+                Mission ID: {lesson.mission_id}
+              </p>
+            </div>
+          )}
         </div>
 
-        <div className="flex flex-col md:flex-row items-start w-full max-w-screen-xl mx-auto gap-8">
-          
-          <div className="relative w-full md:w-2/5 h-80 md:h-[600px] top-24">
-            {lesson && !isLoading && (
-              <div className="absolute top-0 left-0 right-0 z-10 p-4 text-center md:text-left">
-                <h1 className="text-3xl md:text-4xl font-bold text-cyan-300 mb-2 tracking-wide">
-                  {lesson.title}
-                </h1>
-                <p className="text-gray-400 font-mono">
-                  Mission ID: {lesson.mission_id}
-                </p>
+        {/* Main Content Area - using full width */}
+        <div className="w-full max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-8 min-h-[500px]">
+            
+            {/* Left Column: Camera Feed */}
+            <div className="lg:col-span-1 space-y-4">
+              {hasAccess && !isLoading && !accessLoading && (
+                <div className="w-full">
+                  <h3 className="text-lg font-semibold text-cyan-300 mb-3 text-center">Mission Monitor</h3>
+                  <div className="aspect-square w-full max-w-sm mx-auto lg:max-w-none">
+                    <CameraFeed
+                      ref={webcamRef}
+                      onEmotionDetected={handleEmotionDetected}
+                      enableEmotionDetection={true}
+                      compact={true}
+                      className="w-full h-full rounded-lg"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Center Column: Lesson Content - taking more space */}
+            <div className="lg:col-span-2">
+              {renderLessonContent()}
+            </div>
+
+            {/* Right Column: Character Model */}
+            <div className="lg:col-span-1">
+              <div className="relative w-full h-80 lg:h-[500px]">
+                <CharacterModel />
               </div>
-            )}
-            <CharacterModel />
-          </div>
+            </div>
 
-          <div className="w-full md:w-3/5">
-            {renderLessonContent()}
           </div>
-
         </div>
       </main>
       

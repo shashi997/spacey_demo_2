@@ -1,10 +1,16 @@
-// src/components/dashboard/Webcam_Feed.jsx
+// src/components/ui/CameraFeed.jsx
 
 import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { Video, VideoOff, LoaderCircle, Eye, AlertCircle, Cpu, Zap } from 'lucide-react';
 import useEmotionDetection from '../../hooks/useEmotionDetection';
 
-const WebcamFeed = forwardRef(({ onEmotionDetected, enableEmotionDetection = true }, ref) => {
+const CameraFeed = forwardRef(({ 
+  onEmotionDetected, 
+  enableEmotionDetection = true, 
+  className = "",
+  showOverlay = true,
+  compact = false
+}, ref) => {
   const videoRef = useRef(null);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -77,8 +83,8 @@ const WebcamFeed = forwardRef(({ onEmotionDetected, enableEmotionDetection = tru
         // Request access to the user's webcam
         stream = await navigator.mediaDevices.getUserMedia({ 
           video: { 
-            width: { ideal: 640 },
-            height: { ideal: 480 },
+            width: { ideal: compact ? 480 : 640 },
+            height: { ideal: compact ? 480 : 480 },
             facingMode: 'user'
           } 
         });
@@ -113,7 +119,7 @@ const WebcamFeed = forwardRef(({ onEmotionDetected, enableEmotionDetection = tru
         stream.getTracks().forEach(track => track.stop());
       }
     };
-  }, []); // Empty dependency array ensures this runs only once on mount
+  }, [compact]); // Re-run if compact mode changes
 
   const getStatusIcon = () => {
     if (!emotionLoaded) return <LoaderCircle className="w-3 h-3 animate-spin text-yellow-400" />;
@@ -133,10 +139,10 @@ const WebcamFeed = forwardRef(({ onEmotionDetected, enableEmotionDetection = tru
     if (isLoading) {
       return (
         <div className="flex flex-col items-center justify-center h-full text-gray-400">
-          <LoaderCircle className="w-12 h-12 animate-spin text-cyan-400" />
-          <p className="mt-4">Initializing Camera...</p>
+          <LoaderCircle className={`${compact ? 'w-8 h-8' : 'w-12 h-12'} animate-spin text-cyan-400`} />
+          <p className={`mt-4 ${compact ? 'text-xs' : 'text-sm'}`}>Initializing Camera...</p>
           {enableEmotionDetection && (
-            <p className="text-xs mt-2 text-gray-500">
+            <p className={`${compact ? 'text-xs' : 'text-xs'} mt-2 text-gray-500`}>
               {loadingStatus === 'loading_models' ? 'Loading AI models...' : 'Loading emotion detection...'}
             </p>
           )}
@@ -147,9 +153,13 @@ const WebcamFeed = forwardRef(({ onEmotionDetected, enableEmotionDetection = tru
     if (error) {
       return (
         <div className="flex flex-col items-center justify-center h-full text-red-400">
-          <VideoOff className="w-12 h-12" />
-          <p className="mt-4 text-center">{error}</p>
-          <p className="text-xs mt-2 text-gray-500">Emotion detection requires camera access</p>
+          <VideoOff className={`${compact ? 'w-8 h-8' : 'w-12 h-12'}`} />
+          <p className={`mt-4 text-center ${compact ? 'text-xs' : 'text-sm'}`}>{error}</p>
+          {enableEmotionDetection && (
+            <p className={`${compact ? 'text-xs' : 'text-xs'} mt-2 text-gray-500`}>
+              Emotion detection requires camera access
+            </p>
+          )}
         </div>
       );
     }
@@ -166,17 +176,21 @@ const WebcamFeed = forwardRef(({ onEmotionDetected, enableEmotionDetection = tru
         />
         
         {/* Futuristic UI Overlay */}
-        <div className="absolute inset-0 pointer-events-none border-2 border-cyan-400/30 rounded-md animate-pulse-slow"></div>
+        {showOverlay && (
+          <div className="absolute inset-0 pointer-events-none border-2 border-cyan-400/30 rounded-md animate-pulse-slow"></div>
+        )}
         
         {/* Live Feed Indicator */}
-        <div className="absolute top-3 left-3 flex items-center gap-2 text-xs font-mono uppercase text-cyan-400">
-          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-          <span>Live Feed</span>
-        </div>
+        {showOverlay && (
+          <div className={`absolute ${compact ? 'top-1 left-1' : 'top-3 left-3'} flex items-center gap-2 text-xs font-mono uppercase text-cyan-400`}>
+            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+            <span className={compact ? 'text-xs' : 'text-xs'}>Live Feed</span>
+          </div>
+        )}
 
         {/* Emotion Detection Status */}
-        {enableEmotionDetection && (
-          <div className="absolute top-3 right-3 flex items-center gap-2">
+        {enableEmotionDetection && showOverlay && (
+          <div className={`absolute ${compact ? 'top-1 right-1' : 'top-3 right-3'} flex items-center gap-2`}>
             <button 
               onClick={() => setShowEmotionOverlay(!showEmotionOverlay)}
               className="p-1 rounded-full bg-black/40 hover:bg-black/60 transition-colors"
@@ -193,8 +207,8 @@ const WebcamFeed = forwardRef(({ onEmotionDetected, enableEmotionDetection = tru
         )}
 
         {/* Enhanced Emotion Overlay */}
-        {showEmotionOverlay && enableEmotionDetection && (
-          <div className="absolute bottom-3 left-3 right-3 bg-black/80 backdrop-blur-sm rounded-lg p-3 text-xs">
+        {showEmotionOverlay && enableEmotionDetection && showOverlay && (
+          <div className={`absolute ${compact ? 'bottom-1 left-1 right-1' : 'bottom-3 left-3 right-3'} bg-black/80 backdrop-blur-sm rounded-lg p-3 text-xs`}>
             <div className="flex justify-between items-center mb-2">
               <span className="text-cyan-400 font-mono">EMOTION ANALYSIS</span>
               <div className="flex items-center gap-2">
@@ -228,23 +242,25 @@ const WebcamFeed = forwardRef(({ onEmotionDetected, enableEmotionDetection = tru
                 </div>
                 
                 {/* Emotion bars for top emotions */}
-                <div className="mt-2 space-y-1">
-                  {Object.entries(rawData.emotions)
-                    .sort(([,a], [,b]) => b - a)
-                    .slice(0, 3)
-                    .map(([emotion, value]) => (
-                      <div key={emotion} className="flex items-center gap-2">
-                        <span className="text-xs w-12 text-gray-400 capitalize">{emotion}</span>
-                        <div className="flex-1 bg-gray-700 rounded-full h-1">
-                          <div 
-                            className="bg-cyan-400 h-1 rounded-full transition-all duration-300"
-                            style={{ width: `${value * 100}%` }}
-                          />
+                {!compact && (
+                  <div className="mt-2 space-y-1">
+                    {Object.entries(rawData.emotions)
+                      .sort(([,a], [,b]) => b - a)
+                      .slice(0, 3)
+                      .map(([emotion, value]) => (
+                        <div key={emotion} className="flex items-center gap-2">
+                          <span className="text-xs w-12 text-gray-400 capitalize">{emotion}</span>
+                          <div className="flex-1 bg-gray-700 rounded-full h-1">
+                            <div 
+                              className="bg-cyan-400 h-1 rounded-full transition-all duration-300"
+                              style={{ width: `${value * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-gray-400 w-8">{Math.round(value * 100)}%</span>
                         </div>
-                        <span className="text-xs text-gray-400 w-8">{Math.round(value * 100)}%</span>
-                      </div>
-                    ))}
-                </div>
+                      ))}
+                  </div>
+                )}
               </div>
             )}
             
@@ -260,12 +276,12 @@ const WebcamFeed = forwardRef(({ onEmotionDetected, enableEmotionDetection = tru
   };
 
   return (
-    <div className="relative w-full h-full p-2 bg-black/30 backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden">
+    <div className={`relative w-full h-full p-2 bg-black/30 backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden ${className}`}>
       {renderContent()}
     </div>
   );
 });
 
-WebcamFeed.displayName = 'WebcamFeed';
+CameraFeed.displayName = 'CameraFeed';
 
-export default WebcamFeed;
+export default CameraFeed; 

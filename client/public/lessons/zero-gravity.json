@@ -1,0 +1,266 @@
+{
+    "mission_id": "zero-gravity",
+    "title": "Zero Gravity",
+    "total_blocks": 13,
+    "blocks": [
+        {
+            "block_id": "Space Station Arrival",
+            "type": "narration",
+            "content": "Welcome aboard the International Space Station Alpha. You are the newest crew member, experiencing zero gravity for the first time. Prepare to adapt to life without weight.",
+            "media": {
+                "image": "/images/mars_base_dark.png",
+                "audio": "/audio/ai_guidance_chime.mp3",
+                "3d_model": "/models/jumping_space-suit1.glb"
+            },
+            "learning_goal": "Introduce the concept of microgravity and its effects on human physiology.",
+            "llm_instruction": "Set an immersive, wonder-filled tone. Address the student as 'Astronaut'. Describe the disorienting but amazing experience of first entering zero gravity.",
+            "next_block": "Orientation Challenge"
+        },
+        {
+            "block_id": "Orientation Challenge",
+            "type": "choice",
+            "content": "Your first challenge: navigate from the docking port to your crew quarters. Everything feels different in zero gravity!",
+            "media": {
+                "image": "/images/control_panel_alerts.gif"
+            },
+            "choices": [
+                {
+                    "text": "Move slowly and carefully using handholds",
+                    "next_block": "Basic Movement",
+                    "tag": "cautious",
+                    "ai_reaction": "Player chose deliberate, safety-first approach."
+                },
+                {
+                    "text": "Push off walls to glide quickly through modules",
+                    "next_block": "Basic Movement",
+                    "tag": "bold",
+                    "ai_reaction": "Player embraced the freedom of zero gravity movement."
+                }
+            ],
+            "learning_goal": "Understand basic movement and navigation principles in microgravity."
+        },
+        {
+            "block_id": "Basic Movement",
+            "type": "choice",
+            "content": "You're getting the hang of movement, but eating lunch presents new challenges. How do you approach this simple task?",
+            "choices": [
+                {
+                    "text": "Use the standard floating food system",
+                    "next_block": "Work Assignment",
+                    "tag": "cautious",
+                    "ai_reaction": "Player followed established zero-g protocols."
+                },
+                {
+                    "text": "Experiment with different eating techniques",
+                    "next_block": "Work Assignment",
+                    "tag": "creative",
+                    "ai_reaction": "Player explored creative adaptations to zero gravity."
+                }
+            ],
+            "learning_goal": "Learn how basic human activities are modified in zero gravity environments."
+        },
+        {
+            "block_id": "Work Assignment",
+            "type": "choice",
+            "content": "Mission Control assigns you to conduct scientific experiments in zero gravity. Which research area will you focus on?",
+            "media": {
+                "image": "/images/base_power_schematic.jpg"
+            },
+            "choices": [
+                {
+                    "text": "Crystal growth experiments in microgravity",
+                    "next_block": "Equipment Challenge",
+                    "tag": "cautious",
+                    "ai_reaction": "Player chose established materials science research."
+                },
+                {
+                    "text": "Fluid dynamics and mixing experiments",
+                    "next_block": "Equipment Challenge",
+                    "tag": "creative",
+                    "ai_reaction": "Player chose complex fluid behavior studies."
+                }
+            ],
+            "learning_goal": "Explore different types of scientific research enabled by zero gravity conditions."
+        },
+        {
+            "block_id": "Equipment Challenge",
+            "type": "choice",
+            "content": "A critical piece of experimental equipment is malfunctioning. How do you handle repairs in zero gravity?",
+            "choices": [
+                {
+                    "text": "Follow standard EVA safety protocols",
+                    "next_block": "Health Monitoring",
+                    "tag": "cautious",
+                    "ai_reaction": "Player prioritized safety in space operations."
+                },
+                {
+                    "text": "Develop creative zero-g repair techniques",
+                    "next_block": "Health Monitoring",
+                    "tag": "bold",
+                    "ai_reaction": "Player innovated solutions for unique space challenges."
+                }
+            ],
+            "learning_goal": "Understand the challenges and solutions for working with equipment in microgravity."
+        },
+        {
+            "block_id": "Health Monitoring",
+            "type": "choice",
+            "content": "Medical monitoring shows your body is adapting to zero gravity. Which health concern will you focus on managing?",
+            "media": {
+                "audio": "/audio/life_support_warning.mp3"
+            },
+            "choices": [
+                {
+                    "text": "Bone density loss prevention exercise",
+                    "next_block": "Crew Coordination",
+                    "tag": "cautious",
+                    "ai_reaction": "Player focused on long-term health maintenance."
+                },
+                {
+                    "text": "Cardiovascular adaptation training",
+                    "next_block": "Crew Coordination",
+                    "tag": "bold",
+                    "ai_reaction": "Player tackled complex physiological challenges."
+                }
+            ],
+            "learning_goal": "Learn about the physiological effects of long-term zero gravity exposure."
+        },
+        {
+            "block_id": "Crew Coordination",
+            "type": "reflection",
+            "content": "Your approach to zero gravity adaptation reflects your problem-solving style:",
+            "dynamic_content": [
+                {
+                    "condition_tags": ["bold", "creative"],
+                    "text": "Your innovative approach to zero gravity challenges has impressed the crew.",
+                    "llm_instruction": "Elaborate on how creative problem-solving helps astronauts adapt to unique zero gravity challenges."
+                },
+                {
+                    "condition_tags": ["cautious"],
+                    "text": "Your methodical approach ensures safety and reliability in the dangerous environment of space.",
+                    "llm_instruction": "Elaborate on how careful, systematic approaches maintain safety in zero gravity operations."
+                }
+            ],
+            "next_block": "Emergency Scenario"
+        },
+        {
+            "block_id": "Emergency Scenario",
+            "type": "choice",
+            "content": "Emergency! A micrometeorite has punctured a module wall. How do you respond in zero gravity conditions?",
+            "media": {
+                "audio": "/audio/emergency_klaxon.mp3"
+            },
+            "choices": [
+                {
+                    "text": "Immediately seal off the affected area",
+                    "next_block": "Scientific Discovery",
+                    "tag": "cautious",
+                    "ai_reaction": "Player prioritized containment and safety protocols."
+                },
+                {
+                    "text": "Quickly gather repair materials and tools",
+                    "next_block": "Scientific Discovery",
+                    "tag": "bold",
+                    "ai_reaction": "Player chose immediate action to fix the problem."
+                }
+            ],
+            "learning_goal": "Understand emergency procedures and their unique challenges in zero gravity."
+        },
+        {
+            "block_id": "Scientific Discovery",
+            "type": "choice",
+            "content": "Your experiments in zero gravity have yielded unexpected results that could benefit life on Earth. How do you proceed?",
+            "choices": [
+                {
+                    "text": "Carefully document and replicate findings",
+                    "next_block": "Mission Reflection",
+                    "tag": "cautious",
+                    "ai_reaction": "Player emphasized scientific rigor and verification."
+                },
+                {
+                    "text": "Explore the broader implications immediately",
+                    "next_block": "Mission Reflection",
+                    "tag": "creative",
+                    "ai_reaction": "Player pursued innovative research directions."
+                }
+            ],
+            "learning_goal": "Recognize how zero gravity research can benefit life on Earth."
+        },
+        {
+            "block_id": "Mission Reflection",
+            "type": "narration",
+            "content": "Your mission in zero gravity has contributed valuable knowledge about living and working in space, advancing human space exploration capabilities.",
+            "dynamic_outcome": [
+                {
+                    "condition_tags": ["creative"],
+                    "text": "Your innovative approaches have opened new possibilities for future space missions and research.",
+                    "llm_instruction": "Narrate how creative problem-solving in zero gravity leads to breakthrough discoveries and mission capabilities."
+                },
+                {
+                    "condition_tags": ["cautious"],
+                    "text": "Your careful methodology has established reliable protocols for long-duration space missions.",
+                    "llm_instruction": "Narrate how systematic approaches in zero gravity ensure safe and effective space operations."
+                }
+            ],
+            "learning_goal": "Reflect on the importance of zero gravity research for future space exploration.",
+            "next_block": "Space Adaptation"
+        },
+        {
+            "block_id": "Space Adaptation",
+            "type": "reflection",
+            "content": "Your experience adapting to zero gravity reveals important insights:",
+            "dynamic_content": [
+                {
+                    "condition_tags": ["bold", "creative"],
+                    "text": "Your willingness to embrace the unique possibilities of zero gravity has advanced human space capabilities.",
+                    "llm_instruction": "Reflect on how embracing zero gravity's unique properties leads to innovative solutions and discoveries."
+                },
+                {
+                    "condition_tags": ["cautious"],
+                    "text": "Your disciplined approach has proven that humans can safely live and work in zero gravity for extended periods.",
+                    "llm_instruction": "Reflect on how careful adaptation protocols ensure human safety and effectiveness in zero gravity."
+                }
+            ],
+            "learning_goal": "Consider the broader implications of human adaptation to zero gravity environments.",
+            "next_block": "Knowledge Test"
+        },
+        {
+            "block_id": "Knowledge Test",
+            "type": "quiz",
+            "content": "Test your understanding of zero gravity environments:",
+            "questions": [
+                {
+                    "question_text": "What causes the sensation of weightlessness in orbit?",
+                    "options": [
+                        {"text": "Continuous free fall while moving fast enough to miss the Earth", "is_correct": true},
+                        {"text": "Complete absence of gravity in space", "is_correct": false},
+                        {"text": "Artificial gravity generators turned off", "is_correct": false}
+                    ],
+                    "correct_feedback": "Correct! Orbital mechanics creates the sensation of weightlessness through continuous free fall.",
+                    "incorrect_feedback": "Think about what's happening to objects in orbit around Earth.",
+                    "llm_feedback_instruction": "Explain the physics of orbital mechanics and how it creates microgravity conditions."
+                },
+                {
+                    "question_text": "What is a major long-term health concern for astronauts in zero gravity?",
+                    "options": [
+                        {"text": "Bone density loss and muscle atrophy due to lack of gravitational stress", "is_correct": true},
+                        {"text": "Immediate loss of consciousness", "is_correct": false},
+                        {"text": "Inability to digest food properly", "is_correct": false}
+                    ],
+                    "correct_feedback": "Exactly! The human body needs gravitational stress to maintain bone and muscle health.",
+                    "incorrect_feedback": "Consider how the absence of gravity affects the human body over time.",
+                    "llm_feedback_instruction": "Explain the physiological effects of long-term exposure to microgravity and countermeasures."
+                }
+            ],
+            "learning_goal": "Assess understanding of zero gravity physics and human adaptation.",
+            "next_block": "Mission Complete"
+        },
+        {
+            "block_id": "Mission Complete",
+            "type": "narration",
+            "content": "Your successful adaptation to zero gravity has advanced our understanding of human capabilities in space and paved the way for future long-duration missions to Mars and beyond.",
+            "learning_goal": "Celebrate mastery of zero gravity concepts and their importance for space exploration.",
+            "next_block": null
+        }
+    ]
+} 

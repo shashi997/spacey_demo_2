@@ -6,7 +6,7 @@ import { BookOpen, Eye, Brain } from "lucide-react";
 import Navbar from "../components/ui/Navbar";
 import DebugPanel from "../components/debug/DebugPanel";
 import AI_Avatar from "../components/dashboard/AI_Avatar";
-import WebcamFeed from "../components/dashboard/Webcam_Feed";
+import CameraFeed from "../components/ui/CameraFeed";
 import AIChat from "../components/dashboard/AI_Chat";
 import LessonCatalogueModal from "../components/dashboard/LessonCatalogueModal";
 import { useAuth } from "../hooks/useAuth";
@@ -344,7 +344,7 @@ const DashboardPage = () => {
 
           {/* Enhanced Webcam Feed with Emotion Detection */}
           <div className="lg:col-start-3 lg:row-start-1 rounded-xl overflow-hidden">
-            <WebcamFeed
+            <CameraFeed
               ref={webcamRef}
               onEmotionDetected={handleEmotionDetected}
               enableEmotionDetection={enablePersonalization}

@@ -2,10 +2,10 @@
 
 import React, { useEffect } from 'react';
 import { Bot, Volume2, SkipForward } from 'lucide-react';
-import useSpeechSynthesis from '../../hooks/useSpeechSynthesis';
+import { useCoordinatedSpeechSynthesis } from '../../hooks/useSpeechCoordination.jsx';
 
 const AiFeedback = ({ message, onContinue }) => {
-  const { speak, cancel, isSpeaking } = useSpeechSynthesis();
+  const { speak, cancel, isSpeaking } = useCoordinatedSpeechSynthesis('ai-feedback');
 
   useEffect(() => {
     if (message) {

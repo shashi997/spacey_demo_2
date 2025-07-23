@@ -123,7 +123,11 @@ export default function AIAvatar({
   } = useSpeechCoordination();
 
   // This is the key variable. It correctly listens to the global state.
-  const isTalking = globalSpeechState.isAnySpeaking && globalSpeechState.activeSource === 'avatar';
+  // Updated to animate during lesson-related speech as well
+  const isTalking = globalSpeechState.isAnySpeaking && (
+    globalSpeechState.activeSource === 'avatar' ||
+    (mode === "lesson" && ['lesson', 'ai-feedback', 'chat'].includes(globalSpeechState.activeSource))
+  );
 
   // Initialize based on mode
   useEffect(() => {
@@ -310,7 +314,13 @@ export default function AIAvatar({
             ) : (
               <Volume2 className="w-3 h-3 text-cyan-400 animate-pulse" />
             )}
-            <span className="text-white">{isProcessing && !isTalking ? 'Thinking...' : 'Speaking'}</span>
+            <span className="text-white">
+              {isProcessing && !isTalking ? 'Thinking...' : 
+               mode === "lesson" && globalSpeechState.activeSource !== 'avatar' ? 
+               `${globalSpeechState.activeSource === 'lesson' ? 'Narrating' : 
+                 globalSpeechState.activeSource === 'ai-feedback' ? 'Analyzing' : 'Speaking'}...` : 
+               'Speaking'}
+            </span>
           </div>
         )}
       </div>
@@ -335,6 +345,8 @@ export default function AIAvatar({
               Responses:{" "}
               {conversationHistory.filter((h) => h.type === "spacey").length}
             </div>
+            <div>Speech Source: {globalSpeechState.activeSource || 'None'}</div>
+            <div>Avatar Talking: {isTalking ? 'Yes' : 'No'}</div>
             {currentContext.emotionContext && (
               <div>
                 Visual: {currentContext.emotionContext.emotion} ({Math.round(currentContext.emotionContext.confidence * 100)}%)

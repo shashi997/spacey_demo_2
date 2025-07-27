@@ -6,6 +6,7 @@ import { useCoordinatedSpeechSynthesis } from '../../hooks/useSpeechCoordination
 
 const ChatPanel = ({ isOpen, onClose, chatHistory, onSendMessage }) => {
   const [newMessage, setNewMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
   const { speak, cancel } = useCoordinatedSpeechSynthesis('chat'); // Use the speech synthesis hook
 
@@ -27,10 +28,15 @@ const ChatPanel = ({ isOpen, onClose, chatHistory, onSendMessage }) => {
     }
   }, [chatHistory, isOpen, speak, cancel]);
 
-  const handleSendMessage = () => {
-    if (newMessage.trim()) {
-      onSendMessage(newMessage);
-      setNewMessage('');
+  const handleSendMessage = async () => {
+    if (newMessage.trim() && !isLoading) {
+      setIsLoading(true);
+      try {
+        await onSendMessage(newMessage);
+        setNewMessage('');
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -92,6 +98,20 @@ const ChatPanel = ({ isOpen, onClose, chatHistory, onSendMessage }) => {
               </div>
             </div>
           ))}
+          {isLoading && (
+            <div className="mb-4 flex">
+              <div className="max-w-xs py-2 px-3 rounded-lg bg-gray-700 text-gray-200 rounded-bl-none        
+              shadow-md">
+                <div className="flex space-x-1">
+                  <div className="h-2 w-2 bg-gray-300 rounded-full animate-bounce"></div>
+                  <div className="h-2 w-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay:  
+                  '0.2s' }}></div>
+                  <div className="h-2 w-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay:  
+                  '0.4s' }}></div>
+                </div>
+              </div>
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
 
@@ -103,7 +123,8 @@ const ChatPanel = ({ isOpen, onClose, chatHistory, onSendMessage }) => {
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Type your message..."
-              className="flex-grow h-12 p-3 bg-gray-700 text-white rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="flex-grow h-12 p-3 bg-gray-700 text-white rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none disabled:opacity-50"
+              disabled={isLoading}
               style={{
                 scrollbarWidth: 'thin',
                 scrollbarColor: '#4f46e5 #2d3748',
@@ -111,7 +132,8 @@ const ChatPanel = ({ isOpen, onClose, chatHistory, onSendMessage }) => {
             />
             <button
               onClick={handleSendMessage}
-              className="bg-gradient-to-r cursor-pointer from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-2 px-4 rounded-r-lg focus:outline-none focus:shadow-outline flex items-center"
+              className="bg-gradient-to-r cursor-pointer from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-2 px-4 rounded-r-lg focus:outline-none focus:shadow-outline flex items-center disabled:opacity-50 disabled:cursor-not-allowed relative"
+              disabled={isLoading}
             >
               <Send size={20} className="mr-2" /> {/* Slightly larger icon */}
               Send

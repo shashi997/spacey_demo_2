@@ -5,8 +5,8 @@ import { BookOpen, Eye, Brain } from "lucide-react";
 
 import Navbar from "../components/ui/Navbar";
 import DebugPanel from "../components/debug/DebugPanel";
-import AI_Avatar from "../components/dashboard/AI_Avatar";
-import WebcamFeed from "../components/dashboard/Webcam_Feed";
+import AIAvatar from "../components/ui/AIAvatar";
+import CameraFeed from "../components/ui/CameraFeed";
 import AIChat from "../components/dashboard/AI_Chat";
 import LessonCatalogueModal from "../components/dashboard/LessonCatalogueModal";
 import { useAuth } from "../hooks/useAuth";
@@ -332,19 +332,19 @@ const DashboardPage = () => {
         <div className="w-full h-full grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 grid-rows-[minmax(200px,0.5fr)_minmax(200px,0.5fr)_1fr] lg:grid-rows-2">
           {/* Enhanced AI Avatar */}
           <div className="lg:col-span-2 lg:row-span-2 rounded-xl overflow-hidden">
-            <AI_Avatar
+            <AIAvatar
               webcamRef={webcamRef}
               userInfo={user}
               onAvatarResponse={handleAvatarResponse}
               enablePersonalization={enablePersonalization}
-              isExternalSpeaking={isAvatarSpeaking} //  This controls the talking animation from chat
+              mode="dashboard"
               className="w-full h-full"
             />
           </div>
 
           {/* Enhanced Webcam Feed with Emotion Detection */}
           <div className="lg:col-start-3 lg:row-start-1 rounded-xl overflow-hidden">
-            <WebcamFeed
+            <CameraFeed
               ref={webcamRef}
               onEmotionDetected={handleEmotionDetected}
               enableEmotionDetection={enablePersonalization}

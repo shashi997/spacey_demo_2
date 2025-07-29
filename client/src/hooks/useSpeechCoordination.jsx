@@ -190,7 +190,7 @@ export const useCoordinatedSpeechSynthesis = (sourceId) => {
     }
   }, []);
 
-  const speak = useCallback((text, { onEnd, onStart } = {}) => {
+  const speak = useCallback((text, { onEnd, onStart, force = false } = {}) => {
     const textToSpeak = text.trim();
     if (!isSupported || !textToSpeak) {
       if (onEnd) setTimeout(() => onEnd(), 0);

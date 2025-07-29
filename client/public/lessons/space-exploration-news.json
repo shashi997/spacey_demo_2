@@ -1,0 +1,224 @@
+{
+    "mission_id": "space-exploration-news",
+    "title": "What's New in Space Exploration",
+    "total_blocks": 10,
+    "blocks": [
+        {
+            "block_id": "Mission Brief",
+            "type": "narration",
+            "content": "You are the space correspondent for Global Science Network. Your mission: investigate and report on the latest breakthroughs in space exploration and technology.",
+            "media": {
+                "image": "/images/mars-scene.jpg",
+                "audio": "/audio/ai_guidance_chime.mp3",
+                "3d_model": "/models/talking11.glb"
+            },
+            "learning_goal": "Introduce the role of science journalism in space exploration.",
+            "llm_instruction": "Set an engaging, journalistic tone. Address the student as 'Science Reporter'. Emphasize the importance of communicating space discoveries to the public.",
+            "next_block": "Story Selection"
+        },
+        {
+            "block_id": "Story Selection",
+            "type": "choice",
+            "content": "Three major space stories are breaking today. Which will you investigate first for your feature report?",
+            "media": {
+                "image": "/images/control_panel_alerts.gif"
+            },
+            "choices": [
+                {
+                    "text": "New exoplanet discovery with possible signs of life",
+                    "next_block": "Investigation Method",
+                    "tag": "creative",
+                    "ai_reaction": "Player chose the astrobiology angle."
+                },
+                {
+                    "text": "Breakthrough in spacecraft propulsion technology",
+                    "next_block": "Investigation Method",
+                    "tag": "cautious",
+                    "ai_reaction": "Player focused on technological advancement."
+                }
+            ],
+            "learning_goal": "Learn about different areas of current space research and their significance."
+        },
+        {
+            "block_id": "Investigation Method",
+            "type": "choice",
+            "content": "How will you approach investigating this complex space story for the general public?",
+            "choices": [
+                {
+                    "text": "Interview lead scientists and researchers",
+                    "next_block": "Source Verification",
+                    "tag": "cautious",
+                    "ai_reaction": "Player chose primary source investigation."
+                },
+                {
+                    "text": "Visit research facilities and space centers",
+                    "next_block": "Source Verification",
+                    "tag": "bold",
+                    "ai_reaction": "Player chose immersive field reporting."
+                }
+            ],
+            "learning_goal": "Understand different approaches to science journalism and research methods."
+        },
+        {
+            "block_id": "Source Verification",
+            "type": "choice",
+            "content": "You discover conflicting information about the story. How do you handle the verification process?",
+            "media": {
+                "image": "/images/base_power_schematic.jpg"
+            },
+            "choices": [
+                {
+                    "text": "Cross-reference with peer-reviewed publications",
+                    "next_block": "Public Communication",
+                    "tag": "cautious",
+                    "ai_reaction": "Player prioritized scientific rigor."
+                },
+                {
+                    "text": "Seek independent expert commentary",
+                    "next_block": "Public Communication",
+                    "tag": "creative",
+                    "ai_reaction": "Player sought diverse perspectives."
+                }
+            ],
+            "learning_goal": "Learn the importance of fact-checking and verification in science reporting."
+        },
+        {
+            "block_id": "Public Communication",
+            "type": "choice",
+            "content": "Your research is complete. How will you present this complex space science to the general public?",
+            "choices": [
+                {
+                    "text": "Use analogies and visual aids to explain concepts",
+                    "next_block": "Impact Assessment",
+                    "tag": "creative",
+                    "ai_reaction": "Player chose accessible science communication."
+                },
+                {
+                    "text": "Focus on the practical implications for society",
+                    "next_block": "Impact Assessment",
+                    "tag": "cautious",
+                    "ai_reaction": "Player emphasized real-world relevance."
+                }
+            ],
+            "learning_goal": "Explore methods for making complex scientific concepts accessible to the public."
+        },
+        {
+            "block_id": "Impact Assessment",
+            "type": "reflection",
+            "content": "Your reporting approach has shaped public understanding:",
+            "dynamic_content": [
+                {
+                    "condition_tags": ["creative"],
+                    "text": "Your innovative communication style has made space science accessible to broader audiences.",
+                    "llm_instruction": "Elaborate on how creative science communication approaches help the public understand space exploration."
+                },
+                {
+                    "condition_tags": ["cautious"],
+                    "text": "Your rigorous fact-checking has built trust in space science reporting.",
+                    "llm_instruction": "Elaborate on how careful verification and accuracy build public confidence in science journalism."
+                }
+            ],
+            "next_block": "Technology Trends"
+        },
+        {
+            "block_id": "Technology Trends",
+            "type": "choice",
+            "content": "You're tasked with predicting the next big breakthrough in space exploration. What trend do you highlight?",
+            "media": {
+                "image": "/images/solar_flare_view.jpg"
+            },
+            "choices": [
+                {
+                    "text": "Commercial space tourism and accessibility",
+                    "next_block": "Future Implications",
+                    "tag": "bold",
+                    "ai_reaction": "Player focused on democratizing space access."
+                },
+                {
+                    "text": "Advanced AI and robotics for deep space missions",
+                    "next_block": "Future Implications",
+                    "tag": "creative",
+                    "ai_reaction": "Player highlighted technological innovation."
+                }
+            ],
+            "learning_goal": "Consider future directions and emerging trends in space exploration."
+        },
+        {
+            "block_id": "Future Implications",
+            "type": "choice",
+            "content": "Your feature story is gaining international attention. How do you handle the global impact of space discoveries?",
+            "choices": [
+                {
+                    "text": "Emphasize international cooperation in space",
+                    "next_block": "Story Impact",
+                    "tag": "cautious",
+                    "ai_reaction": "Player promoted collaborative space exploration."
+                },
+                {
+                    "text": "Highlight competition driving innovation",
+                    "next_block": "Story Impact",
+                    "tag": "bold",
+                    "ai_reaction": "Player emphasized competitive advancement."
+                }
+            ],
+            "learning_goal": "Understand the global and political dimensions of space exploration."
+        },
+        {
+            "block_id": "Story Impact",
+            "type": "narration",
+            "content": "Your investigative reporting has influenced public opinion and policy decisions about space exploration funding and priorities.",
+            "dynamic_outcome": [
+                {
+                    "condition_tags": ["creative"],
+                    "text": "Your engaging storytelling has inspired a new generation of space enthusiasts and scientists.",
+                    "llm_instruction": "Narrate how creative science communication inspires public interest and career choices in space science."
+                },
+                {
+                    "condition_tags": ["cautious"],
+                    "text": "Your thorough journalism has informed evidence-based space policy decisions.",
+                    "llm_instruction": "Narrate how rigorous science reporting influences informed policy-making in space exploration."
+                }
+            ],
+            "learning_goal": "Recognize the role of science communication in shaping public policy and interest.",
+            "next_block": "Knowledge Check"
+        },
+        {
+            "block_id": "Knowledge Check",
+            "type": "quiz",
+            "content": "Test your understanding of current space exploration developments:",
+            "questions": [
+                {
+                    "question_text": "What makes science communication about space exploration important?",
+                    "options": [
+                        {"text": "It builds public support for space research funding and inspires future scientists", "is_correct": true},
+                        {"text": "It only serves to entertain the general public", "is_correct": false},
+                        {"text": "It's primarily for marketing space agencies", "is_correct": false}
+                    ],
+                    "correct_feedback": "Correct! Science communication builds public engagement and support for space exploration.",
+                    "incorrect_feedback": "Consider the broader impacts of sharing space discoveries with the public.",
+                    "llm_feedback_instruction": "Explain how science communication serves multiple important functions in advancing space exploration."
+                },
+                {
+                    "question_text": "Why is fact-checking crucial in space science reporting?",
+                    "options": [
+                        {"text": "It maintains public trust and prevents misinformation about scientific discoveries", "is_correct": true},
+                        {"text": "It's only important for legal reasons", "is_correct": false},
+                        {"text": "It slows down the news cycle unnecessarily", "is_correct": false}
+                    ],
+                    "correct_feedback": "Exactly! Accurate reporting builds trust in science and prevents misconceptions.",
+                    "incorrect_feedback": "Think about the consequences of inaccurate science reporting.",
+                    "llm_feedback_instruction": "Elaborate on the importance of accuracy in science journalism and its impact on public understanding."
+                }
+            ],
+            "learning_goal": "Assess understanding of science communication principles and ethics.",
+            "next_block": "Mission Complete"
+        },
+        {
+            "block_id": "Mission Complete",
+            "type": "narration",
+            "content": "Your space journalism has successfully bridged the gap between cutting-edge research and public understanding, contributing to an informed society that values space exploration.",
+            "learning_goal": "Celebrate the completion of the science communication mission.",
+            "next_block": null
+        }
+    ]
+} 

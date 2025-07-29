@@ -1,9 +1,11 @@
 // src/components/dashboard/LessonCatalogueModal.jsx
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { gsap } from 'gsap';
-import { X } from 'lucide-react';
+import { X, Loader, RefreshCw } from 'lucide-react';
 import LessonCard from './Lesson_Cards';
+import { getAllLessonsWithAccess } from '../../utils/lessonProgression';
+import { useAuth } from '../../hooks/useAuth';
 
 // Import your lesson images
 import satelliteImg from '../../assets/satellite.jpg';
@@ -12,18 +14,57 @@ import space_explorationImg from '../../assets/space.jpg';
 import MarsRoverImg from '../../assets/mars-67522_640.jpg';
 import ZeroGravityImg from '../../assets/zerogravity.jpg';
 
-// Your new lesson data structure
-const lessons = [
-    { id: 'build-satellite', title: 'Build Your Own Satellite', image: satelliteImg },
-    { id: 'spaghettification', title: 'Spaghettification', image: spaghettificationImg },
-    { id: 'space-exploration-news', title: `What's new in Space Exploration`, image: space_explorationImg },
-    { id: 'mars_energy', title: 'Mars Energy Dilemma', image: MarsRoverImg },
-    { id: 'zero-gravity', title: 'Zero Gravity', image: ZeroGravityImg },
-];
+// Image mapping for lessons
+const lessonImages = {
+  'mars_energy': MarsRoverImg,
+  'build-satellite': satelliteImg,
+  'spaghettification': spaghettificationImg,
+  'space-exploration-news': space_explorationImg,
+  'zero-gravity': ZeroGravityImg,
+};
 
 const LessonCatalogueModal = ({ isOpen, onClose }) => {
   const modalRef = useRef(null);
   const panelRef = useRef(null);
+  const [lessons, setLessons] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { currentUser } = useAuth();
+
+  // Load lessons with access status when modal opens
+  useEffect(() => {
+    if (isOpen && currentUser) {
+      loadLessonsWithAccess();
+    }
+  }, [isOpen, currentUser]);
+
+  // Refresh lessons when modal becomes visible (to catch completed lessons)
+  useEffect(() => {
+    if (isOpen && currentUser && !loading) {
+      const refreshTimer = setTimeout(() => {
+        loadLessonsWithAccess();
+      }, 500); // Small delay to ensure any in-progress saves are complete
+      
+      return () => clearTimeout(refreshTimer);
+    }
+  }, [isOpen]);
+
+  const loadLessonsWithAccess = async () => {
+    if (!currentUser) return;
+    
+    setLoading(true);
+    try {
+      const lessonsWithAccess = await getAllLessonsWithAccess(currentUser.uid);
+      const lessonsWithImages = lessonsWithAccess.map(lesson => ({
+        ...lesson,
+        image: lessonImages[lesson.id] || MarsRoverImg // fallback image
+      }));
+      setLessons(lessonsWithImages);
+    } catch (error) {
+      console.error('Error loading lessons:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // GSAP animation for the modal
   useEffect(() => {
@@ -51,6 +92,18 @@ const LessonCatalogueModal = ({ isOpen, onClose }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
+  // Refresh lesson access when window regains focus (user returns from lesson)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (isOpen && currentUser && !loading) {
+        loadLessonsWithAccess();
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [isOpen, currentUser, loading]);
+
   return (
     <div
       ref={modalRef}
@@ -69,25 +122,54 @@ const LessonCatalogueModal = ({ isOpen, onClose }) => {
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-white/10">
           <h2 className="text-2xl font-bold text-white">Lesson Catalogue</h2>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-full text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
-            aria-label="Close lesson catalogue"
-          >
-            <X size={24} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={loadLessonsWithAccess}
+              disabled={loading}
+              className="p-2 rounded-full text-gray-400 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50"
+              aria-label="Refresh lessons"
+              title="Refresh lesson status"
+            >
+              <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
+              aria-label="Close lesson catalogue"
+            >
+              <X size={24} />
+            </button>
+          </div>
         </div>
 
-        {/* Lesson List - now uses the redesigned card */}
+        {/* Lesson List - now uses the redesigned card with progression */}
         <div className="flex-grow p-6 overflow-y-auto space-y-6">
-          {lessons.map((lesson) => (
-            <LessonCard
-              key={lesson.id}
-              id={lesson.id}
-              title={lesson.title}
-              image={lesson.image}
-            />
-          ))}
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+              <Loader size={32} className="animate-spin mb-4" />
+              <p>Loading missions...</p>
+            </div>
+          ) : lessons.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+              <p>No missions available</p>
+            </div>
+          ) : (
+            lessons.map((lesson) => (
+              <LessonCard
+                key={lesson.id}
+                id={lesson.id}
+                title={lesson.title}
+                image={lesson.image}
+                description={lesson.description}
+                difficulty={lesson.difficulty}
+                estimatedTime={lesson.estimatedTime}
+                isLocked={lesson.isLocked}
+                isCompleted={lesson.isCompleted}
+                hasAccess={lesson.hasAccess}
+                accessReason={lesson.accessReason}
+              />
+            ))
+          )}
         </div>
       </div>
     </div>

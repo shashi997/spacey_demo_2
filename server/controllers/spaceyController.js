@@ -1,3 +1,4 @@
+const pineconeRetriever = require('./pineconeRetriever');
 const { aiProviderManager } = require('./aiProviders');
 const { conversationMemory } = require('./conversationMemory');
 const { persistentMemory } = require('./persistentMemory');
@@ -9,7 +10,12 @@ console.log('🧠 Memory system loaded:', !!conversationMemory);
 console.log('💾 Persistent memory loaded:', !!persistentMemory);
 console.log('🎯 Trait analyzer loaded:', !!traitAnalyzer);
 
-const buildSystemPrompt = (userPrompt, userInfo = {}, conversationContext = {}) => {
+// Initialize Pinecone retriever at startup
+pineconeRetriever.initialize().catch(err => {
+  console.error("Failed to initialize Pinecone Retriever on startup:", err);
+});
+
+const buildSystemPrompt = (userPrompt, userInfo = {}, conversationContext = {}, retrievedContext = "") => {
   const {
     name = 'Explorer',
     traits = ['curious'],
@@ -79,6 +85,17 @@ const buildSystemPrompt = (userPrompt, userInfo = {}, conversationContext = {}) 
     default:
       learningAdjustment = 'Adapt explanation style based on their response.';
   }
+
+  const knowledgeContext = retrievedContext 
+  ? `
+--- Relevant Lesson Knowledge ---
+I have found some relevant information from our lesson archives that might help answer the Commander's query:
+"${retrievedContext}"
+(Use this knowledge to directly answer the user's question. Synthesize it into you own words. If the user's query isn't a question, you can use this context to add relevant color or detail to you response.)
+`
+  : `
+(The user's query doesn't seem to be a direct question requiring lesson data, so no specific knowledge has been retrieved. Respond based on the general conversation context.)
+`;
 
   return `
 You are **Spacey**, the witty AI assistant combining Baymax's warm empathy with JARVIS's clever sophistication.
@@ -489,8 +506,12 @@ const handleUnifiedChat = async (req, res, userId, user, prompt, requestBody = {
         console.log('📚 Learning style:', learningStyle);
         console.log('💭 Enhanced conversation context with visual data');
 
+        // RAG Integration Step
+        console.log('Retrieving context from Pinecone...');
+        const retrievedContext = await pineconeRetriever.getRelevantContext(prompt);
+        console.log(retrievedContext ? `Found relevant context.` : 'No specific context found, proceeding with general knowledge.');
         // Build the enhanced prompt with unified personality
-        const fullPrompt = buildSystemPrompt(enhancedPrompt, user, conversationContext);
+        const fullPrompt = buildSystemPrompt(enhancedPrompt, user, conversationContext, retrievedContext);
         console.log('📝 Unified prompt built with complete context');
 
         // Generate response with unified Spacey personality
@@ -511,7 +532,8 @@ const handleUnifiedChat = async (req, res, userId, user, prompt, requestBody = {
                 currentTopic: requestBody.currentTopic,
                 userMood: requestBody.userMood
             },
-            type: 'unified_chat'
+            type: 'unified_chat',
+            retrievedContext: retrievedContext ? retrievedContext.substring(0, 500) : undefined  // logging a snippet of retrieved context
         });
         
         console.log('💾 Unified interaction saved to persistent memory');
@@ -526,6 +548,7 @@ const handleUnifiedChat = async (req, res, userId, user, prompt, requestBody = {
                 learningStyle,
                 hasVisualContext: !!requestBody.emotionContext?.visualDescription,
                 conversationManagerIntegration: true,
+                retrievedContext: !!retrievedContext,
                 timestamp: new Date().toISOString()
             }
         });

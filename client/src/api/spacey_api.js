@@ -6,112 +6,104 @@ import axios from 'axios';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 // Create an Axios instance with a base URL.
-// This is good practice so you don't have to type the full URL everywhere.
 const apiClient = axios.create({
-  baseURL: `${API_BASE_URL}/api/chat`,
+  // baseURL: `${API_BASE_URL}/api/chat`,
+  baseURL: '/api/chat',
   headers: {
     'Content-Type': 'application/json',
-  }
+  },
+  timeout: 5000
 });
 
+apiClient.interceptors.request.use(config => {
+  console.log(`🌐 Making ${config.method.toUpperCase()} request to: ${config.url}`);
+  return config;
+})
+
 /**
- * Sends a chat message to the AI backend with enhanced context support.
- * 
- * @param {string} message - The user's message text.
+ * Sends a chat message or a contextual request to the AI backend.
+ * This is the unified function for all interactions with the /spacey endpoint.
+ *
  * @param {object} userInfo - An object containing user data (e.g., from Firebase Auth).
- * @param {object} options - Additional context and options for enhanced responses.
+ * @param {object} options - Additional context and options for the request.
+ * @param {string} [options.prompt=null] - The user's message. Required for chat, null for trigger-based responses.
+ * @param {string} [options.type='unified_chat'] - The type of request ('unified_chat', 'avatar_response', 'personalized_compliment').
+ * @param {string} [options.trigger=null] - The trigger for avatar responses ('idle', 'emotion_change', etc.).
+ * @param {object} [options.visualContext=null] - Visual analysis data from the camera.
+ * @param {object} [options.conversationContext=null] - Context from the conversation manager.
  * @returns {Promise<object>} The AI's response from the backend.
  */
-export const sendChatMessageToAI = async (message, userInfo, options = {}) => {
+export const sendAIRequest = async (userInfo, options = {}) => {
   try {
-    // In a real application, you would get the user's auth token from Firebase
-    // and include it in the headers for secure, authenticated requests.
-    // Example:
-    // const token = await auth.currentUser.getIdToken();
-    // apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    console.log("📡 Sending unified AI request to backend:", { userInfo, options });
 
-    console.log("🔗 API Base URL:", API_BASE_URL);
-    console.log("📡 Full API URL:", `${API_BASE_URL}/api/chat/spacey`);
-    console.log("📤 Sending to backend:", { message, userInfo, options });
-
-    const { 
-      conversationContext = null, 
-      includeEmotionContext = false,
-      responseType = 'standard_chat'
+    const {
+      prompt = null,
+      type = 'unified_chat',
+      trigger = null,
+      visualContext = null,
+      conversationContext = null,
     } = options;
 
-    // The payload sent to your backend API with enhanced context.
+    // The payload sent to your backend API.
     const payload = {
-      prompt: message,
-      type: responseType,
+      prompt,
+      type,
+      trigger,
       user: {
-        id: userInfo?.uid || 'anonymous-user', // User's Firebase UID
+        id: userInfo?.uid || 'anonymous-user',
         email: userInfo?.email || 'anonymous@example.com',
-        name: userInfo?.displayName || 'Explorer'
+        name: userInfo?.displayName || 'Explorer',
       },
-      // Enhanced context for unified conversation management
+      visualContext,
+      // Context for unified conversation management
       conversationHistory: conversationContext?.conversationHistory || [],
-      emotionContext: includeEmotionContext ? conversationContext?.emotionContext : null,
+      emotionContext: conversationContext?.emotionContext || null,
       userActivity: conversationContext?.userActivity || 'active',
       currentTopic: conversationContext?.currentTopic || null,
       userMood: conversationContext?.userMood || 'neutral',
       timeSinceLastInteraction: conversationContext?.timeSinceLastInteraction || 0,
     };
-
-    // Make the POST request to the '/spacey' endpoint
-    const response = await apiClient.post('/spacey', payload);
     
-    // Return the full response data
+    // Backend expects `visualAnalysis` for compliments, not `visualContext`
+    if (type === 'personalized_compliment') {
+      payload.visualAnalysis = visualContext;
+      delete payload.visualContext;
+    }
+
+    const response = await apiClient.post('/spacey', payload);
     return response.data;
 
   } catch (error) {
-    console.error("Error calling AI backend:", error);
+    console.error("Error calling unified AI backend:", error);
     console.error("Error details:", {
       message: error.message,
       response: error.response?.data,
       status: error.response?.status,
-      config: {
-        url: error.config?.url,
-        method: error.config?.method,
-        baseURL: error.config?.baseURL
-      }
     });
-    // Re-throw a more specific error or return a default error message.
+
+    // Fallback for trigger-based responses to prevent UI silence
+    if (options.type === 'avatar_response' && options.trigger) {
+        const fallbackResponses = {
+            emotion_change: "I can see something's shifted - how are you feeling about this?",
+            idle: "Ready to explore the cosmos together?",
+            encouragement: "You're doing fantastic! Your curiosity is stellar!"
+        };
+        return {
+            response: fallbackResponses[options.trigger] || fallbackResponses.idle,
+            type: 'fallback_avatar_response'
+        };
+    }
+    
+    if (options.type === 'personalized_compliment') {
+        return {
+            response: "You're doing great! Keep up that stellar enthusiasm!",
+            type: 'fallback_compliment'
+        };
+    }
+
+    // For chat, re-throw a more specific error.
     throw new Error("Failed to get a response from the AI. Please try again.");
-  }
-};
-
-/**
- * Generate a personalized compliment/response based on visual analysis and user traits
- * 
- * @param {object} visualData - Object containing emotion analysis data
- * @param {object} userInfo - User information
- * @returns {Promise<object>} Personalized compliment response
- */
-export const generatePersonalizedCompliment = async (visualData, userInfo) => {
-  try {
-    console.log("🎭 Generating personalized compliment:", { visualData, userInfo });
-
-    const payload = {
-      type: 'personalized_compliment',
-      visualAnalysis: visualData,
-      user: {
-        id: userInfo?.uid || 'anonymous-user',
-        email: userInfo?.email || 'anonymous@example.com',
-        name: userInfo?.displayName || 'Explorer'
-      }
-    };
-
-    const response = await apiClient.post('/spacey', payload);
-    return response.data;
-
-  } catch (error) {
-    console.error("Error generating personalized compliment:", error);
-    // Return a fallback compliment
-    return {
-      response: "You're doing great! Keep up that stellar enthusiasm!",
-      type: 'fallback_compliment'
-    };
   }
 };
 
@@ -125,17 +117,35 @@ export const fetchUserTraits = async (userId) => {
   try {
     console.log("🧠 Fetching user traits for:", userId);
 
-    const response = await apiClient.get(`/traits/${userId}`);
-    return response.data;
+    const response = await apiClient.get(`/profile/traits/${userId}`);
+    return {
+      cautious: response.data.traits?.cautious || 0,
+      bold: response.data.traits?.bold || 0,
+      creative: response.data.traits?.creative || 0,
+    }
 
   } catch (error) {
     console.error("Error fetching user traits:", error);
     // Return default traits if fetch fails
     return {
-      traits: ['curious', 'science_minded'],
-      confidence: 0.3,
-      source: 'default'
+      cautious: 0,
+      bold: 0,
+      creative: 0
     };
+  }
+};
+
+export const getMissionHistory = async (userId) => {
+  try {
+    const response = await apiClient.get(`/profile/missions/${userId}`);
+    return response.data.missions.map(mission => ({
+      ...mission,
+      completed_at: mission.completed_at || null,
+      traits_demonstrated: mission.traits_demonstrated || []
+    })); 
+  } catch (error) {
+    console.error("Error fetching mission history:", error);
+    return [];
   }
 };
 
@@ -160,93 +170,6 @@ export const getConversationContext = async (userId, limit = 5) => {
       recentTopics: [],
       emotionalState: { emotion: 'neutral', confidence: 0.5 },
       learningStyle: 'unknown'
-    };
-  }
-};
-
-/**
- * Enhanced chat message that includes visual analysis context
- * 
- * @param {string} message - The user's message text
- * @param {object} userInfo - User information
- * @param {object} visualContext - Visual analysis data from camera
- * @returns {Promise<object>} Enhanced AI response
- */
-export const sendEnhancedChatMessage = async (message, userInfo, visualContext = null) => {
-  try {
-    console.log("🚀 Sending enhanced chat message with visual context");
-
-    const payload = {
-      prompt: message,
-      user: {
-        id: userInfo?.uid || 'anonymous-user',
-        email: userInfo?.email || 'anonymous@example.com',
-        name: userInfo?.displayName || 'Explorer'
-      },
-      visualContext: visualContext ? {
-        emotionalState: visualContext.emotionalState,
-        visualDescription: visualContext.visualDescription,
-        faceDetected: visualContext.faceDetected,
-        timestamp: visualContext.timestamp,
-        confidence: visualContext.confidence
-      } : null,
-      type: 'enhanced_chat'
-    };
-
-    const response = await apiClient.post('/spacey', payload);
-    return response.data;
-
-  } catch (error) {
-    console.error("Error sending enhanced chat message:", error);
-    // Fallback to regular chat
-    return sendChatMessageToAI(message, userInfo);
-  }
-};
-
-/**
- * Generate contextual avatar responses based on user state
- * 
- * @param {object} userInfo - User information
- * @param {object} visualContext - Current visual analysis
- * @param {string} trigger - What triggered the avatar response ('emotion_change', 'idle', 'encouragement')
- * @returns {Promise<object>} Avatar response
- */
-export const generateAvatarResponse = async (userInfo, visualContext, trigger = 'idle') => {
-  try {
-    console.log("🤖 Generating avatar response for trigger:", trigger);
-
-    const payload = {
-      type: 'avatar_response',
-      trigger,
-      user: {
-        id: userInfo?.uid || 'anonymous-user',
-        email: userInfo?.email || 'anonymous@example.com',
-        name: userInfo?.displayName || 'Explorer'
-      },
-      visualContext: visualContext ? {
-        emotionalState: visualContext.emotionalState,
-        visualDescription: visualContext.visualDescription,
-        faceDetected: visualContext.faceDetected,
-        confidence: visualContext.confidence
-      } : null
-    };
-
-    const response = await apiClient.post('/spacey', payload);
-    return response.data;
-
-  } catch (error) {
-    console.error("Error generating avatar response:", error);
-    
-    // Fallback responses based on trigger type
-    const fallbackResponses = {
-      emotion_change: "I can see something's shifted - how are you feeling about this?",
-      idle: "Ready to explore the cosmos together?",
-      encouragement: "You're doing fantastic! Your curiosity is stellar!"
-    };
-
-    return {
-      response: fallbackResponses[trigger] || fallbackResponses.idle,
-      type: 'fallback_avatar_response'
     };
   }
 };

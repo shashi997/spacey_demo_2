@@ -289,11 +289,37 @@ const LessonPage = () => {
     }
   }, [userTags, saveLessonProgress, currentMediaIndex, chatHistory]);
 
-  const handleChoice = useCallback((choice) => {
+  const handleChoice = useCallback(async (choice) => {
     const { next_block, tag } = choice;
     setPendingNavigation(next_block);
     setPageState('thinking');
 
+    try {
+      // Save choice first to ensure trait is tracked
+      if (currentUser?.uid && lesson && currentBlock) {
+        await saveChoice({
+          userId: currentUser.uid,
+          missionId: lesson.mission_id,
+          blockId: currentBlock.block_id,
+          choiceText: choice.text,
+          tag: tag || null,
+        });
+      }
+       // Update the local trait state
+      if (tag) {
+        const updatedTags = [...new Set([...userTags, tag])];
+        setUserTags(updatedTags);
+
+        // Update persistent traits and save progress
+        const updatedPersistentTags = [...new Set([...persistentUserTags, tag])];
+        await savePersistentUserTags(updatedPersistentTags);
+        setPersistentUserTags(updatedPersistentTags);
+
+        await saveLessonProgress(next_block, updatedTags, currentMediaIndex, chatHistory);
+      }
+    } catch (error) {
+      console.error('Error handling choice:', error);
+    }
     const runAnalysis = async () => {
       try {
         const optimisticTags = tag ? [...new Set([...userTags, tag])] : [...userTags];

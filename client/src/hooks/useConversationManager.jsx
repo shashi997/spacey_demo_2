@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react';
 import { useSpeechCoordination, useCoordinatedSpeechSynthesis } from './useSpeechCoordination.jsx';
-import { sendChatMessageToAI, generateAvatarResponse } from '../api/spacey_api';
+import { sendAIRequest } from '../api/spacey_api';
 
 // Context for unified conversation management
 const ConversationManagerContext = createContext();
@@ -108,12 +108,13 @@ export const ConversationManagerProvider = ({ children }) => {
 
   // Unified Spacey response generator
   const generateSpaceyResponse = useCallback(async (
-    input, 
-    responseType = 'chat',
-    userInfo = null
+    prompt, 
+    type = 'unified_chat',
+    userInfo = null,
+    options = {}
   ) => {
     if (isProcessing) {
-      setPendingResponses(prev => [...prev, { input, responseType, userInfo, timestamp: Date.now() }]);
+      setPendingResponses(prev => [...prev, { prompt, type, userInfo, options, timestamp: Date.now() }]);
       return null;
     }
 
@@ -121,39 +122,25 @@ export const ConversationManagerProvider = ({ children }) => {
     trackActivity();
 
     try {
-      const contextData = buildConversationContext();
-      let response;
+      const conversationContext = buildConversationContext();
+      
+      const response = await sendAIRequest(userInfo, {
+        prompt,
+        type,
+        trigger: options.trigger,
+        visualContext: options.visualContext || conversationContext.emotionContext,
+        conversationContext,
+      });
 
-      if (responseType === 'chat') {
-        const enhancedInput = contextData.emotionContext ? 
-          `${input}\n\n[VISUAL CONTEXT: User appears ${contextData.userMood}, ${contextData.emotionContext.visualDescription || 'engaged'}]` : 
-          input;
-
-        response = await sendChatMessageToAI(enhancedInput, userInfo, {
-          conversationContext: contextData,
-          includeEmotionContext: true
-        });
-        
-        addToHistory('user', input);
-        addToHistory('spacey', response.message, { responseType, context: contextData });
-
+      // Add appropriate history entry
+      if (type === 'unified_chat') {
+        addToHistory('user', prompt);
+        addToHistory('spacey', response.message, { responseType: type, context: conversationContext });
       } else {
-        const avatarPayload = {
-          ...userInfo,
-          conversationHistory: contextData.conversationHistory,
-          emotionContext: contextData.emotionContext
-        };
-
-        response = await generateAvatarResponse(
-          avatarPayload,
-          contextData.emotionContext,
-          responseType
-        );
-
         addToHistory('spacey', response.response, { 
-          responseType, 
-          trigger: responseType,
-          context: contextData 
+          responseType: type, 
+          trigger: options.trigger,
+          context: conversationContext 
         });
       }
 
@@ -195,8 +182,25 @@ export const ConversationManagerProvider = ({ children }) => {
         return null;
       }
     }
+    
+    // Map internal response types to API-friendly types
+    const getResponseType = (type) => {
+        switch (type) {
+            case 'chat':
+            case 'lesson-tutor':
+                return { apiType: 'unified_chat', trigger: null };
+            case 'idle':
+            case 'emotion-aware':
+            case 'greeting':
+                return { apiType: 'avatar_response', trigger: type };
+            default:
+                return { apiType: type, trigger: type }; // Default for custom triggers
+        }
+    };
 
-    const response = await generateSpaceyResponse(input, responseType, userInfo);
+    const { apiType, trigger } = getResponseType(responseType);
+
+    const response = await generateSpaceyResponse(input, apiType, userInfo, { ...options, trigger });
     
     if (response && (response.message || response.response)) {
       const textToSpeak = response.message || response.response;
@@ -204,9 +208,6 @@ export const ConversationManagerProvider = ({ children }) => {
       if (responseType === 'emotion-aware') lastEmotionResponseTime.current = Date.now();
       else if (responseType === 'idle') lastIdleResponseTime.current = Date.now();
 
-      // =================================================================================
-      // THE FIX: Use the correctly named `speakAsAvatar` function.
-      // =================================================================================
       speakAsAvatar(textToSpeak, {
         onEnd: () => {
           if (pendingResponses.length > 0) {

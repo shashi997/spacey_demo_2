@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Rocket } from 'lucide-react';
+import { fetchUserTraits, getMissionHistory } from '../../api/spacey_api';
 
 const TRAIT_LABELS = [
   { key: 'cautious', label: 'Cautious', color: 'bg-cyan-400' },
@@ -24,9 +25,44 @@ const StarryBg = () => (
   </svg>
 );
 
-const PlayerProfile = ({ userId, traits = {}, missions = [], loading = false }) => {
-  // Count completed missions
-  const completedCount = missions.filter(m => m.completed_at).length;
+const PlayerProfile = ({ userId, initialTraits = {}, initialMissions = [], loading = false }) => {
+  const [profileData, setProfileData] = useState({
+    traits: initialTraits,
+    missions: initialMissions
+  });
+  const [isLoading, setIsLoading] = useState(loading);
+
+  useEffect(() => {
+    const loadProfileData = async () => {
+      if (!userId) return;
+
+      setIsLoading(true);
+      try {
+        // Fetch traits and missions in parallel using api functions from spacey_api.js
+        const [traits, missions] = await Promise.all([
+          fetchUserTraits(userId),
+          getMissionHistory(userId)
+        ]);
+
+        setProfileData({
+          traits: traits || {},
+          missions: missions || []
+        });
+      } catch (error) {
+        console.error('Error loading profile:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+        
+    loadProfileData();
+  }, [userId]);
+
+  // passed props or fetched data
+  const displayTraits = profileData.traits;
+  const displayMissions = profileData.missions;
+  const completedCount = displayMissions.filter(m => m.completed_at).length;
+
   return (
     <div className="w-full max-w-md mx-auto rounded-2xl shadow-2xl border border-blue-200/30 p-5 text-white relative overflow-hidden bg-gradient-to-br from-[#23283a] to-[#181c24]" style={{minHeight:'350px'}}>
       <StarryBg />
@@ -67,10 +103,10 @@ const PlayerProfile = ({ userId, traits = {}, missions = [], loading = false }) 
                   <div className="flex-1 h-4 bg-gray-700 rounded-full overflow-hidden shadow-inner">
                     <div
                       className={`${color} h-4 rounded-full transition-all shadow-lg`}
-                      style={{ width: `${Math.min((traits[key] || 0) * 33, 100)}%` }}
+                      style={{ width: `${Math.min((profileData.traits[key] || 0) * 33, 100)}%` }}
                     ></div>
                   </div>
-                  <span className="ml-2 text-sm font-bold text-white drop-shadow-lg">{traits[key] || 0}</span>
+                  <span className="ml-2 text-sm font-bold text-white drop-shadow-lg">{profileData.traits[key] || 0}</span>
                 </div>
               ))}
             </div>
@@ -88,7 +124,7 @@ const PlayerProfile = ({ userId, traits = {}, missions = [], loading = false }) 
           {[...Array(5)].map((_, i) => (
             <span
               key={i}
-              className={`w-5 h-5 rounded-full border-2 ${i < completedCount ? 'bg-blue-400 border-blue-400 shadow-lg' : 'bg-gray-800 border-gray-600'} transition-all`}
+              className={`w-5 h-5 rounded-full border-2 ${i < profileData.missions.filter(m => m.completed_at).length ? 'bg-blue-400 border-blue-400 shadow-lg' : 'bg-gray-800 border-gray-600'} transition-all`}
             ></span>
           ))}
         </div>

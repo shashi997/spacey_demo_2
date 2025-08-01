@@ -16,27 +16,66 @@ const UserDashboardPage = () => {
   const [fetchError, setFetchError] = useState(null);
 
   useEffect(() => {
-    const fetchTraitsAndMissions = async () => {
-      if (currentUser) {
-        try {
-          console.log('Fetching traits for', currentUser.uid);
-          const traitsRes = await axios.get(`/api/chat/profile/traits/${currentUser.uid}`);
-          setTraits(traitsRes.data.traits || {});
-          const missionsRes = await axios.get(`/api/chat/profile/missions/${currentUser.uid}`);
-          setMissions(missionsRes.data.missions || []);
-          setFetchError(null);
-        } catch (error) {
-          setTraits({});
-          setMissions([]);
-          setFetchError(error.message || 'Failed to fetch traits or missions');
-          console.error('Error fetching traits or missions:', error);
-        } finally {
-          setLoading(false);
-        }
+  const fetchTraitsAndMissions = async () => {
+    if (!currentUser?.uid) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      console.log('🔍 Fetching data for user:', currentUser.uid);
+      
+      const [traitsRes, missionsRes] = await Promise.all([
+        axios.get(`/api/chat/profile/traits/${currentUser.uid}`, {
+          validateStatus: false
+        }),
+        axios.get(`/api/chat/profile/missions/${currentUser.uid}`, {
+          validateStatus: false
+        })
+      ]);
+
+      console.log('📊 Received traits:', traitsRes.data);
+      console.log('🎯 Received missions:', missionsRes.data);
+
+      if (traitsRes.status !== 200) {
+        throw new Error(`Traits API returned ${traitsRes.status}: ${JSON.stringify(traitsRes.data)}`);
       }
-    };
-    fetchTraitsAndMissions();
-  }, [currentUser]);
+
+      if (missionsRes.status !== 200) {
+        throw new Error(`Missions API returned ${missionsRes.status}: ${JSON.stringify(missionsRes.data)}`);
+      }
+
+      // Make sure we're handling the correct data structure
+      const traitsData = traitsRes.data.traits || {};
+      const missionsData = missionsRes.data.missions || [];
+
+      console.log('Processed traits data:', traitsData);
+      console.log('Processed missions data:', missionsData);
+
+      // Make sure we're handling the data structure correctly
+      setTraits(traitsRes.data.traits || {});
+      setMissions(missionsRes.data.missions || []);
+      setFetchError(null);
+
+    } catch (error) {
+      console.error('❌ Error fetching profile data:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      setFetchError(
+        `Failed to load profile: ${error.response?.data?.error || error.message}`);
+        setTraits({});
+        setMissions([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchTraitsAndMissions();
+}, [currentUser?.uid]); 
 
   if (!currentUser) {
     return (
@@ -58,11 +97,29 @@ const UserDashboardPage = () => {
 
           {/* Player Profile Card */}
           <div className="flex justify-center my-6 sm:my-8">
-            <PlayerProfile userId={currentUser.uid} traits={traits} missions={missions} loading={loading} />
+            {loading ? (
+              <div className="text-center p-4">
+                <p className="text-cyan-400">Loading profile data...</p>
+              </div>
+            ) : (
+            <PlayerProfile userId={currentUser?.uid} initialTraits={traits || {}} initialMissions={missions || []} loading={loading} error={fetchError} />
+            )}
           </div>
 
           {fetchError && (
             <div className="text-red-400 font-mono text-sm">Error loading traits: {fetchError}</div>
+          )}
+
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-4 p-4 bg-gray-900/50 rounded-lg text-left w-full">
+              <h3 className="text-cyan-400 font-mono mb-2">Debug Data:</h3>
+              <div className="text-xs text-gray-400 font-mono">
+                <p>Loading: {loading.toString()}</p>
+                <p>Traits: {JSON.stringify(traits, null, 2)}</p>
+                <p>Missions: {JSON.stringify(missions, null, 2)}</p>
+                <p>Error: {fetchError || 'none'}</p>
+              </div>
+            </div>
           )}
 
           {/* Optionally, keep other info below */}

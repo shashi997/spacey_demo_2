@@ -16,9 +16,10 @@ router.get('/spacey', (req, res) => {
       method: "POST",
       url: "/api/chat/spacey",
       body: {
-        prompt: "Your message here",
+        prompt: "Your message here (required for chat)",
         user: { id: "user-id", email: "user@example.com" },
-        type: "standard_chat | avatar_response | enhanced_chat | personalized_compliment"
+        type: "unified_chat (default) | avatar_response | personalized_compliment",
+        trigger: "(required for avatar_response)"
       }
     },
     status: "Server is running and ready for chat requests!"

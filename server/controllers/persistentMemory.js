@@ -18,6 +18,15 @@ class PersistentMemoryManager {
     this.profileUpdateInterval = 5; // Update profile every 5 interactions
     
     this.ensureDirectories();
+
+    //Initialize immediatedly
+    this.init();
+  }
+
+  async init() {
+    await this.ensureDirectories();
+    console.log('🚀 Persistent Memory System initialized')
+    return true;
   }
 
   async ensureDirectories() {
@@ -141,6 +150,45 @@ class PersistentMemoryManager {
     }
   }
 
+  async getUserMissions(userId) {
+    try {
+      const profile = await this.getUserProfile(userId);
+      return profile.missions_completed.map(mission => ({
+        id: mission.mission_id,
+        name: `Mission ${mission.mission_id}`,
+        completed_at: mission.completed_at,
+        score: this.calculateMissionScore(mission),
+        traits_demonstrated: mission.traits_demonstrated || [],
+        final_sumamry: mission.final_summary || null
+      }));
+    } catch (error) {
+      console.error('Error in getUserMissions:', error);
+      return [];
+    }
+  }
+  
+  calculateMissionScore(mission) {
+    let score = 0;
+    if (mission.completed_at) score += 50;
+    if (mission.choices?.length) score += mission.choices.length * 10;
+    if (mission.tratis_demonstrated?.length) score += mission.tratis_demonstrated.length * 5;
+    return Math.min(score, 100);
+  }
+  async getUserTraits(userId) {
+    try {
+      const profile = await this.getUserProfile(userId);
+      return {
+        cautious: profile.traits?.cautious || 0,
+        bold: profile.traits?.bold || 0,
+        creative: profile.traits?.creative || 0,
+        confidence: profile.traits?.confidence || 0,
+        lastUpdated: profile.tratis?.lastUpdated || new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('Error in getUserTraits:', error);
+      return null;
+    }
+  }
   // === CONVERSATION MANAGEMENT ===
 
   async addInteraction(userId, userMessage, aiResponse, metadata = {}) {
@@ -541,34 +589,73 @@ class PersistentMemoryManager {
 
   // === PLAYER PROGRESS & TRAITS API ===
   async saveChoice(userId, missionId, blockId, choiceText, tag) {
-    // Map all tags to only 'cautious', 'bold', or 'creative'
-    const tagMap = {
-      cautious: 'cautious', safe: 'cautious', passive: 'cautious', collaborative: 'cautious',
-      bold: 'bold', risk: 'bold', active: 'bold', assertive: 'bold', mission_continuity: 'bold', external_help: 'bold',
-      creative: 'creative'
-    };
-    const mappedTag = tagMap[tag] || (tag === 'creative' ? 'creative' : (tag ? 'creative' : null));
-    const profile = await this.getUserProfile(userId);
-    // Find or create mission entry
-    let mission = profile.missions_completed.find(m => m.mission_id === missionId);
-    if (!mission) {
-      mission = {
-        mission_id: missionId,
-        completed_at: null,
-        choices: [],
-        final_summary: ''
-      };
-      profile.missions_completed.push(mission);
+    try {
+        const profile = await this.getUserProfile(userId);
+        
+        // Initialize traits if they don't exist
+        if (!profile.traits) {
+            profile.traits = {
+                cautious: 0,
+                bold: 0,
+                creative: 0,
+                confidence: 0.5,
+                lastUpdated: new Date().toISOString()
+            };
+        }
+   
+      // Map tags to trait categories
+      const traitMap = {
+        cautious: ['cautious', 'careful', 'safe', 'passive', 'collaborative'],
+        bold: ['bold', 'risk', 'brave', 'active', 'assertive', 'mission_continuity', 'external_help'],
+        creative: ['creative', 'innovative', 'unique'], 
+      }
+      
+      // Find trait category and update count
+      if (tag) {
+          for (const [category, tags] of Object.entries(traitMap)) {
+              if (tags.includes(tag)) {
+                  profile.traits[category] = (profile.traits[category] || 0) + 1;
+                  profile.traits.lastUpdated = new Date().toISOString();
+                  break;
+              }
+          }
+      }
+
+      // Map all tags to only 'cautious', 'bold', or 'creative'
+      // const tagMap = {
+      //   cautious: 'cautious', safe: 'cautious', passive: 'cautious', collaborative: 'cautious',
+      //   bold: 'bold', risk: 'bold', active: 'bold', assertive: 'bold', mission_continuity: 'bold', external_help: 'bold',
+      //   creative: 'creative'
+      // };
+      // const mappedTag = tagMap[tag] || (tag === 'creative' ? 'creative' : (tag ? 'creative' : null));
+      // const profile = await this.getUserProfile(userId);
+          
+      // Handle mission progress
+      let mission = profile.missions_completed.find(m => m.mission_id === missionId);
+      if (!mission) {
+        mission = {
+          mission_id: missionId,
+          completed_at: null,
+          choices: [],
+          traits_demonstrated: []
+        };
+        profile.missions_completed.push(mission);
+      }
+
+      // Add choice 
+      mission.choices.push({ block_id: blockId, choice: choiceText, tag, timestamp: new Date().toISOString() });
+      
+      if (tag && !mission.traits_demonstrated.includes(tag)) {
+        mission.traits_demonstrated.push(tag);
+      }
+
+      // Save profile
+      await this.saveUserProfile(userId, profile);
+      console.log(`💾 Choice saved for user ${userId} in mission ${missionId}`);
+      return mission;
+    } catch (error) {
+      console.error('Error saving choice:', error);
     }
-    // Add choice (store original tag for history, but increment only mapped trait)
-    mission.choices.push({ block_id: blockId, choice: choiceText, tag });
-    // Update trait count
-    if (mappedTag) {
-      if (!profile.traits[mappedTag]) profile.traits[mappedTag] = 0;
-      profile.traits[mappedTag] += 1;
-    }
-    await this.saveUserProfile(userId, profile);
-    return mission;
   }
 
   async getUserTraits(userId) {

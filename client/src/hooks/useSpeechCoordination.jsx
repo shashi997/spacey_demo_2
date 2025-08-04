@@ -1,3 +1,4 @@
+import { synthesizeSpeech, cleanup } from '../api/voice_api';
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 
 // Context for global speech coordination
@@ -165,131 +166,203 @@ export const useSpeechCoordination = () => {
 
 // Enhanced speech synthesis hook that integrates with global coordination
 export const useCoordinatedSpeechSynthesis = (sourceId) => {
-  const [isSupported, setIsSupported] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  // const [isSupported, setIsSupported] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const isSpeakingRef = useRef(false);
+  const audioRef = useRef(null);
+  const audioUrlRef = useRef(null);
+  // const isSpeakingRef = useRef(false);
   const { registerSpeechSource, unregisterSpeechSource, avatarSettings } = useSpeechCoordination();
 
-  useEffect(() => {
-    if ('speechSynthesis' in window) {
-      setIsSupported(true);
-      const synth = window.speechSynthesis;
-      const updateVoices = () => {
-        if (synth.getVoices().length > 0) {
-          // Voices loaded
-        }
-      };
-      synth.addEventListener('voiceschanged', updateVoices);
-      updateVoices();
-      return () => {
-        synth.removeEventListener('voiceschanged', updateVoices);
-        if (synth.speaking) {
-          synth.cancel();
-        }
-      };
+  // Cleanup function
+  const cleanupAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+      audioRef.current = null;
+    }
+    if (audioUrlRef.current) {
+      cleanup(audioUrlRef.current);
+      audioUrlRef.current = null;
     }
   }, []);
 
-  const speak = useCallback((text, { onEnd, onStart, force = false } = {}) => {
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      cleanupAudio();
+    };
+  }, [cleanupAudio]);
+
+  // useEffect(() => {
+  //   if ('speechSynthesis' in window) {
+  //     setIsSupported(true);
+  //     const synth = window.speechSynthesis;
+  //     const updateVoices = () => {
+  //       if (synth.getVoices().length > 0) {
+  //         // Voices loaded
+  //       }
+  //     };
+  //     synth.addEventListener('voiceschanged', updateVoices);
+  //     updateVoices();
+  //     return () => {
+  //       synth.removeEventListener('voiceschanged', updateVoices);
+  //       if (synth.speaking) {
+  //         synth.cancel();
+  //       }
+  //     };
+  //   }
+  // }, []);
+
+  const speak = useCallback(async (text, { onEnd, onStart, force = false } = {}) => {
     const textToSpeak = text.trim();
-    if (!isSupported || !textToSpeak) {
+    if (!textToSpeak) {
       if (onEnd) setTimeout(() => onEnd(), 0);
       return;
     }
 
-    // Check if avatar is muted (only applies to avatar source)
+    // Check if avatar is muted 
     if (sourceId === 'avatar' && avatarSettings.isMuted && !force) {
       if (onEnd) setTimeout(() => onEnd(), 0);
       return;
     }
 
-    const synth = window.speechSynthesis;
+    try {
+      setIsLoading(true);
 
-    const trySpeak = () => {
-      const availableVoices = synth.getVoices();
-      if (availableVoices.length === 0) {
-        setTimeout(trySpeak, 100);
-        return;
-      }
+      cleanupAudio();
 
-      if (synth.speaking) {
-        synth.cancel();
-      }
+      const audioUrl = await synthesizeSpeech(textToSpeak);
+      audioUrlRef.current = audioUrl;
 
-      const utterance = new SpeechSynthesisUtterance(textToSpeak);     
-      const selectedVoice =
-        availableVoices.find(v => v.name === 'Google UK English Female' && v.localService) ||
-        availableVoices.find(v => v.name === 'Microsoft Zira - English (United States)' && v.localService) ||
-        availableVoices.find(v => v.lang.startsWith('en') && v.localService) ||
-        availableVoices.find(v => v.name === 'Google UK English Female') ||
-        availableVoices.find(v => v.name === 'Microsoft Zira - English (United States)') ||
-        availableVoices.find(v => v.lang === 'en-US') ||
-        availableVoices.find(v => v.lang.startsWith('en'));
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
 
-      if (selectedVoice) {
-        utterance.voice = selectedVoice;
-      }
-
-      utterance.pitch = 1;
-      utterance.rate = 1;
-      utterance.volume = 1;
-
-      utterance.onstart = () => {
-        isSpeakingRef.current = true;
+      audio.oncanplaythrough = () => {
+        setIsLoading(false);
         setIsSpeaking(true);
         registerSpeechSource(sourceId);
-        if (onStart) onStart();  // Call the onStart callback
+        if (onStart) onStart();
+        audio.play().catch(console.error);
       };
 
-      utterance.onend = () => {
-        setTimeout(() => {
-          if (isSpeakingRef.current) {
-            isSpeakingRef.current = false;
-            setIsSpeaking(false);
-            unregisterSpeechSource(sourceId);
-            if (onEnd) onEnd();
-          }
-        }, 100);
-      };
-
-      utterance.onerror = (event) => {
-        console.error('SpeechSynthesis Error', event);
-        isSpeakingRef.current = false;
+      audio.onended = () => {
         setIsSpeaking(false);
         unregisterSpeechSource(sourceId);
+        cleanupAudio();
         if (onEnd) onEnd();
       };
 
-      setTimeout(() => {
-        synth.speak(utterance);
-      }, 50);
-    };
+      audio.onerror = (error) => {
+        console.error('Audio playback error:', error);
+        setIsLoading(false);
+        setIsSpeaking(false);
+        unregisterSpeechSource(sourceId);
+        cleanupAudio();
+        if (onEnd) onEnd();
+      };
+    } catch (error) {
+      console.error('Speech synthesis error:', error);
+      setIsLoading(false);
+      setIsSpeaking(false);
+      if (onEnd) onEnd();
 
-    trySpeak();
-  }, [isSupported, sourceId, registerSpeechSource, unregisterSpeechSource, avatarSettings.isMuted]);
+      if (window.speechSynthesis) {
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        utterance.onend = onEnd;
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+    // const synth = window.speechSynthesis;
+
+    // const trySpeak = () => {
+    //   const availableVoices = synth.getVoices();
+    //   if (availableVoices.length === 0) {
+    //     setTimeout(trySpeak, 100);
+    //     return;
+    //   }
+
+    //   if (synth.speaking) {
+    //     synth.cancel();
+    //   }
+
+    //   const utterance = new SpeechSynthesisUtterance(textToSpeak);     
+    //   const selectedVoice =
+    //     availableVoices.find(v => v.name === 'Google UK English Female' && v.localService) ||
+    //     availableVoices.find(v => v.name === 'Microsoft Zira - English (United States)' && v.localService) ||
+    //     availableVoices.find(v => v.lang.startsWith('en') && v.localService) ||
+    //     availableVoices.find(v => v.name === 'Google UK English Female') ||
+    //     availableVoices.find(v => v.name === 'Microsoft Zira - English (United States)') ||
+    //     availableVoices.find(v => v.lang === 'en-US') ||
+    //     availableVoices.find(v => v.lang.startsWith('en'));
+
+    //   if (selectedVoice) {
+    //     utterance.voice = selectedVoice;
+    //   }
+
+    //   utterance.pitch = 1;
+    //   utterance.rate = 1;
+    //   utterance.volume = 1;
+
+    //   utterance.onstart = () => {
+    //     isSpeakingRef.current = true;
+    //     setIsSpeaking(true);
+    //     registerSpeechSource(sourceId);
+    //     if (onStart) onStart();  // Call the onStart callback
+    //   };
+
+    //   utterance.onend = () => {
+    //     setTimeout(() => {
+    //       if (isSpeakingRef.current) {
+    //         isSpeakingRef.current = false;
+    //         setIsSpeaking(false);
+    //         unregisterSpeechSource(sourceId);
+    //         if (onEnd) onEnd();
+    //       }
+    //     }, 100);
+    //   };
+
+    //   utterance.onerror = (event) => {
+    //     console.error('SpeechSynthesis Error', event);
+    //     isSpeakingRef.current = false;
+    //     setIsSpeaking(false);
+    //     unregisterSpeechSource(sourceId);
+    //     if (onEnd) onEnd();
+    //   };
+
+    //   setTimeout(() => {
+    //     synth.speak(utterance);
+    //   }, 50);
+    // };
+
+    // trySpeak();
+  }, [sourceId, registerSpeechSource, unregisterSpeechSource, avatarSettings.isMuted, cleanupAudio]);
 
   const cancel = useCallback(() => {
-    if (!isSupported) return;
-    window.speechSynthesis.cancel();
-    isSpeakingRef.current = false;
+    // if (!isSupported) return;
+    // window.speechSynthesis.cancel();
+    // isSpeakingRef.current = false;
+    setIsLoading(false);
     setIsSpeaking(false);
     unregisterSpeechSource(sourceId);
-  }, [isSupported, sourceId, unregisterSpeechSource]);
+    cleanupAudio();
+  }, [sourceId, unregisterSpeechSource, cleanupAudio]);
 
-  const prime = useCallback(() => {
-    if (!isSupported) return;
-    const synth = window.speechSynthesis;
-    if (synth.speaking || synth.pending) return;
-    const utterance = new SpeechSynthesisUtterance(' ');
-    utterance.volume = 0;
-    synth.speak(utterance);
-  }, [isSupported]);
+  // const prime = useCallback(() => {
+  //   if (!isSupported) return;
+  //   const synth = window.speechSynthesis;
+  //   if (synth.speaking || synth.pending) return;
+  //   const utterance = new SpeechSynthesisUtterance(' ');
+  //   utterance.volume = 0;
+  //   synth.speak(utterance);
+  // }, [isSupported]);
 
   return {
-    isSupported,
+    isSupported: true,
     isSpeaking,
+    isLoading,
     speak,
     cancel,
-    prime,
+    // prime,
   };
 }; 

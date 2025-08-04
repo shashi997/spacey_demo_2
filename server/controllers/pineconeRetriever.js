@@ -15,6 +15,13 @@ const initialize = async () => {
         console.log("Pinecone and embedder already initialized.");
         return;
     }
+
+    // Check if Pinecone is configured
+    if (!PINECONE_INDEX_NAME) {
+        console.log('Pinecone not configured, skipping initialization');
+        return;
+    }
+    
     try {
         console.log('Initializing Pinecone retriever...');
 
@@ -37,6 +44,12 @@ const initialize = async () => {
  * Queries the Pinecone index to find the most relevant lesson context for a given user query.
  */
 const getRelevantContext = async (userQuery, topK = 3) => {
+    // Check if Pinecone is configured
+    if (!PINECONE_INDEX_NAME) {
+        console.log('Pinecone not configured, skipping context retrieval');
+        return "";
+    }
+
     if (!embedder || !index) {
         await initialize();
     }

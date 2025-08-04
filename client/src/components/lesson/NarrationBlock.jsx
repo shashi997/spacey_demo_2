@@ -1,12 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Volume2, SkipForward } from 'lucide-react';
-import { useCoordinatedSpeechSynthesis, useSpeechCoordination } from '../../hooks/useSpeechCoordination.jsx';
+import { Volume2, SkipForward, Loader2 } from 'lucide-react';
+import { useSpeechCoordination } from '../../hooks/useSpeechCoordination.jsx';
+import { useConversationManager } from '../../hooks/useConversationManager.jsx';
 
 const NarrationBlock = ({ block, userTags, onNavigate, getDynamicText }) => {
-  const { speak, cancel, isSpeaking, isSupported } = useCoordinatedSpeechSynthesis('lesson');
-  const { setContextState, trackActivity } = useSpeechCoordination();
+  const { setContextState, trackActivity, globalSpeechState } = useSpeechCoordination();
+  const { startNarration } = useConversationManager();
   const [speechComplete, setSpeechComplete] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Check if avatar is speaking
+  const isSpeaking = globalSpeechState.isAnySpeaking && globalSpeechState.activeSource === 'avatar';
 
   // Combine all text content into a single string for the speech synthesizer
   const textToSpeak = [
@@ -15,27 +20,30 @@ const NarrationBlock = ({ block, userTags, onNavigate, getDynamicText }) => {
   ].filter(Boolean).join(' . '); // Join with a period for a natural pause
 
   useEffect(() => {
-    const handleSpeechEnd = () => {
-      setSpeechComplete(true);
-      // Clear lesson context when narration ends
-      setContextState('isInLesson', false);
-    };
-
-    if (isSupported) {
-      // Set lesson context and track activity
-      setContextState('isInLesson', true);
-      trackActivity();
-      speak(textToSpeak, { onEnd: handleSpeechEnd });
-    }
+    // Set lesson context and track activity
+    setContextState('isInLesson', true);
+    trackActivity();
+    setIsLoading(true);
+    
+    // Small delay to ensure smooth transition
+    const startDelay = setTimeout(() => {
+      setIsLoading(false);
+      // Use conversation manager to speak through avatar
+      startNarration(textToSpeak, {
+        onEnd: () => {
+          setSpeechComplete(true);
+          setContextState('isInLesson', false);
+        }
+      });
+    }, 500);
 
     return () => {
-      cancel();
+      clearTimeout(startDelay);
       setContextState('isInLesson', false);
     };
-  }, [block.block_id, textToSpeak, isSupported, speak, cancel, setContextState, trackActivity]);
+  }, [block.block_id, textToSpeak, startNarration, setContextState, trackActivity]);
 
   const handleManualContinue = () => {
-    cancel();
     trackActivity();
     setContextState('isInLesson', false);
     if (block.next_block) {
@@ -45,9 +53,15 @@ const NarrationBlock = ({ block, userTags, onNavigate, getDynamicText }) => {
 
   return (
     <div className="text-center animate-[fadeIn_0.5s_ease-in-out]">
+      {isLoading &&(
+        <div className="flex justify-center items-center gap-2 text-cyan-400 mb-4">
+          <Loader2 className="animate-spin" />
+          <span>Preparing voice...</span>
+        </div>
+      )}
       {isSpeaking && (
         <div className="flex justify-center items-center gap-2 text-cyan-400 mb-4 animate-pulse">
-          <Volume2 />
+          <Volume2 className="animate-pulse" />
           <span>Speaking...</span>
         </div>
       )}
@@ -95,11 +109,6 @@ const NarrationBlock = ({ block, userTags, onNavigate, getDynamicText }) => {
         </Link>
       )}
       
-      {!isSupported && (
-        <p className="text-xs text-gray-500 mt-6 italic">
-          Auto-narration is not supported by your browser. Please use the "Continue" button.
-        </p>
-      )}
     </div>
   );
 };

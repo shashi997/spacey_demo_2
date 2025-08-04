@@ -2,29 +2,29 @@
 
 import React, { useEffect } from 'react';
 import { Bot, Volume2, SkipForward } from 'lucide-react';
-import { useCoordinatedSpeechSynthesis } from '../../hooks/useSpeechCoordination.jsx';
+import { useSpeechCoordination } from '../../hooks/useSpeechCoordination.jsx';
+import { useConversationManager } from '../../hooks/useConversationManager.jsx';
 
 const AiFeedback = ({ message, onContinue }) => {
-  const { speak, cancel, isSpeaking } = useCoordinatedSpeechSynthesis('ai-feedback');
+  const { globalSpeechState } = useSpeechCoordination();
+  const { startNarration } = useConversationManager();
+  
+  // Check if avatar is speaking
+  const isSpeaking = globalSpeechState.isAnySpeaking && globalSpeechState.activeSource === 'avatar';
 
   useEffect(() => {
     if (message) {
-      // When the component mounts with a message, start speaking.
-      speak(message, {
+      // Use conversation manager to speak through avatar
+      startNarration(message, {
         onEnd: () => {
           // This callback can be used for logic after speech finishes,
           // but the continue button is always active for a better UX.
         },
       });
     }
-    // Cleanup function to cancel any ongoing speech if the component unmounts.
-    return () => {
-      cancel();
-    };
-  }, [message, speak, cancel]);
+  }, [message, startNarration]);
 
   const handleContinueClick = () => {
-    cancel(); // Stop any ongoing speech immediately
     onContinue(); // Call the function to proceed to the next block
   };
 

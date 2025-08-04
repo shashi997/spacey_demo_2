@@ -127,6 +127,13 @@ class PersistentMemoryManager {
         recentSessions: [] // last 10 session summaries
       },
 
+      // Visual profile data
+      visual: {
+        age: null,
+        gender: null,
+        lastUpdated: null
+      },
+
       // --- NEW: Missions and Traits ---
       missions_completed: [], // Array of { mission_id, completed_at, choices, final_summary }
       traits: {}, // { cautious: 2, bold: 1, creative: 0, ... }
@@ -531,8 +538,9 @@ class PersistentMemoryManager {
 
   // === LEGACY COMPATIBILITY ===
 
-  summarizeContext(userId) {
-    return this.generateEnhancedContext(userId).then(context => {
+  async summarizeContext(userId) {
+    try {
+      const context = await this.generateEnhancedContext(userId);
       if (context.totalInteractions === 0) {
         return "New user - no previous interactions.";
       }
@@ -561,15 +569,21 @@ class PersistentMemoryManager {
       }
 
       // Add visual info to summary
-      if (profile.visual.age && profile.visual.gender) {
-        summary += `Appears to be a ${profile.visual.gender} around ${profile.visual.age} years old. `;
+      try {
+        const profile = await this.getUserProfile(userId);
+        if (profile.visual && profile.visual.age && profile.visual.gender) {
+          summary += `Appears to be a ${profile.visual.gender} around ${profile.visual.age} years old. `;
+        }
+      } catch (visualError) {
+        // Visual data is optional, don't break if it fails
+        console.log('Visual profile data not available for summary');
       }
       
       return summary;
-    }).catch(error => {
+    } catch (error) {
       console.error('Error generating context summary:', error);
       return "Unable to load user context.";
-    });
+    }
   }
 
   detectEmotionalState(userId, currentMessage) {
@@ -589,11 +603,14 @@ class PersistentMemoryManager {
 
   // === PLAYER PROGRESS & TRAITS API ===
   async saveChoice(userId, missionId, blockId, choiceText, tag) {
+    console.log('📝 saveChoice called with:', { userId, missionId, blockId, choiceText, tag });
+    
     try {
         const profile = await this.getUserProfile(userId);
         
         // Initialize traits if they don't exist
         if (!profile.traits) {
+            console.log('🔧 Initializing traits for user:', userId);
             profile.traits = {
                 cautious: 0,
                 bold: 0,
@@ -612,13 +629,24 @@ class PersistentMemoryManager {
       
       // Find trait category and update count
       if (tag) {
+          console.log('🏷️ Processing tag:', tag);
+          let tagMapped = false;
+          
           for (const [category, tags] of Object.entries(traitMap)) {
-              if (tags.includes(tag)) {
+              if (tags && Array.isArray(tags) && tags.includes(tag)) {
+                  console.log(`✅ Tag '${tag}' mapped to category '${category}'`);
                   profile.traits[category] = (profile.traits[category] || 0) + 1;
                   profile.traits.lastUpdated = new Date().toISOString();
+                  tagMapped = true;
                   break;
               }
           }
+          
+          if (!tagMapped) {
+              console.log(`⚠️ Tag '${tag}' not found in any trait category`);
+          }
+      } else {
+          console.log('⚠️ No tag provided with choice');
       }
 
       // Map all tags to only 'cautious', 'bold', or 'creative'
@@ -630,9 +658,16 @@ class PersistentMemoryManager {
       // const mappedTag = tagMap[tag] || (tag === 'creative' ? 'creative' : (tag ? 'creative' : null));
       // const profile = await this.getUserProfile(userId);
           
+      // Initialize missions_completed if it doesn't exist
+      if (!profile.missions_completed) {
+          console.log('🔧 Initializing missions_completed for user:', userId);
+          profile.missions_completed = [];
+      }
+      
       // Handle mission progress
-      let mission = profile.missions_completed.find(m => m.mission_id === missionId);
+      let mission = profile.missions_completed.find(m => m && m.mission_id === missionId);
       if (!mission) {
+        console.log('🆕 Creating new mission record for:', missionId);
         mission = {
           mission_id: missionId,
           completed_at: null,
@@ -643,18 +678,24 @@ class PersistentMemoryManager {
       }
 
       // Add choice 
-      mission.choices.push({ block_id: blockId, choice: choiceText, tag, timestamp: new Date().toISOString() });
+      const choiceRecord = { block_id: blockId, choice: choiceText, tag, timestamp: new Date().toISOString() };
+      mission.choices.push(choiceRecord);
+      console.log('📌 Choice recorded:', choiceRecord);
       
-      if (tag && !mission.traits_demonstrated.includes(tag)) {
+      if (tag && mission.traits_demonstrated && !mission.traits_demonstrated.includes(tag)) {
         mission.traits_demonstrated.push(tag);
+        console.log('🎯 Trait demonstrated:', tag);
       }
 
       // Save profile
       await this.saveUserProfile(userId, profile);
-      console.log(`💾 Choice saved for user ${userId} in mission ${missionId}`);
+      console.log(`💾 Choice saved successfully for user ${userId} in mission ${missionId}`);
+      console.log('📊 Updated traits:', profile.traits);
       return mission;
     } catch (error) {
-      console.error('Error saving choice:', error);
+      console.error('❌ Error in saveChoice:', error);
+      console.error('Stack trace:', error.stack);
+      throw error; // Re-throw to ensure proper error handling in the controller
     }
   }
 

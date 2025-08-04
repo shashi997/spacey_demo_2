@@ -391,6 +391,25 @@ TUTORING GUIDELINES:
     return generateCoordinatedResponse(enhancedTutorPrompt, 'lesson-tutor', userInfo, { priority: 'normal' });
   }, [buildConversationContext, generateCoordinatedResponse]);
 
+  // Handle narration (lesson blocks, etc) - speak directly through avatar
+  const startNarration = useCallback(async (text, options = {}) => {
+    if (!text) return;
+    
+    // Cancel any existing speech first
+    cancelAvatarSpeech();
+    
+    // Speak through avatar with proper context
+    trackActivity();
+    speakAsAvatar(text, {
+      onEnd: () => {
+        if (options.onEnd) options.onEnd();
+      },
+      onStart: () => {
+        if (options.onStart) options.onStart();
+      }
+    });
+  }, [speakAsAvatar, cancelAvatarSpeech, trackActivity]);
+
   // Clear old conversation data
   useEffect(() => {
     const cleanup = setInterval(() => {
@@ -417,6 +436,10 @@ TUTORING GUIDELINES:
     buildConversationContext,
     clearHistory: () => setConversationHistory([]),
     getRecentHistory: (count = 5) => conversationHistory.slice(-count),
+    // Speech
+    startNarration,
+    speakAsAvatar,
+    isAvatarSpeaking: globalSpeechState.isAnySpeaking && globalSpeechState.activeSource === 'avatar',
   };
 
   return (

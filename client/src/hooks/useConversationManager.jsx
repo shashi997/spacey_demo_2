@@ -20,6 +20,7 @@ export const ConversationManagerProvider = ({ children }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [pendingResponses, setPendingResponses] = useState([]);
   const [hasGreeted, setHasGreeted] = useState(false);
+  const [currentSpeechText, setCurrentSpeechText] = useState(''); // Track what avatar is currently saying
 
   // Speech coordination
   const { globalSpeechState, canAvatarBeIdle, setContextState, trackActivity } = useSpeechCoordination();
@@ -208,8 +209,12 @@ export const ConversationManagerProvider = ({ children }) => {
       if (responseType === 'emotion-aware') lastEmotionResponseTime.current = Date.now();
       else if (responseType === 'idle') lastIdleResponseTime.current = Date.now();
 
+      // Track what we're saying
+      setCurrentSpeechText(textToSpeak);
+
       speakAsAvatar(textToSpeak, {
         onEnd: () => {
+          setCurrentSpeechText(''); // Clear when done
           if (pendingResponses.length > 0) {
             const nextResponse = pendingResponses[0];
             setPendingResponses(prev => prev.slice(1));
@@ -247,10 +252,15 @@ export const ConversationManagerProvider = ({ children }) => {
     addToHistory('spacey', greetingText, { responseType: 'greeting' });
 
     try {
+      // Track what we're saying
+      setCurrentSpeechText(greetingText);
+      
       // Speak the greeting as the avatar
       await speakAsAvatar(greetingText);
+      setCurrentSpeechText(''); // Clear when done
     } catch (error) {
       console.error("Greeting speech failed:", error);
+      setCurrentSpeechText(''); // Clear on error too
     } finally {
       // Ensure processing is set to false even if speech fails
       setIsProcessing(false);
@@ -398,10 +408,14 @@ TUTORING GUIDELINES:
     // Cancel any existing speech first
     cancelAvatarSpeech();
     
+    // Track what we're currently saying
+    setCurrentSpeechText(text);
+    
     // Speak through avatar with proper context
     trackActivity();
     speakAsAvatar(text, {
       onEnd: () => {
+        setCurrentSpeechText(''); // Clear when done
         if (options.onEnd) options.onEnd();
       },
       onStart: () => {
@@ -440,6 +454,7 @@ TUTORING GUIDELINES:
     startNarration,
     speakAsAvatar,
     isAvatarSpeaking: globalSpeechState.isAnySpeaking && globalSpeechState.activeSource === 'avatar',
+    currentSpeechText, // Add this to expose what's currently being spoken
   };
 
   return (

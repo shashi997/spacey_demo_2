@@ -112,7 +112,8 @@ export default function AIAvatar({
     handleLessonTutoring, // New method for lesson context
     conversationHistory,
     currentContext,
-    isProcessing
+    isProcessing,
+    currentSpeechText // Get current speech text to show in bubble
   } = useConversationManager();
 
   const {
@@ -123,11 +124,8 @@ export default function AIAvatar({
   } = useSpeechCoordination();
 
   // This is the key variable. It correctly listens to the global state.
-  // Updated to animate during lesson-related speech as well
-  const isTalking = globalSpeechState.isAnySpeaking && (
-    globalSpeechState.activeSource === 'avatar' ||
-    (mode === "lesson" && ['lesson', 'ai-feedback', 'chat'].includes(globalSpeechState.activeSource))
-  );
+  // All speech (dashboard, lessons, chat, analysis) now goes through the 'avatar' source
+  const isTalking = globalSpeechState.isAnySpeaking && globalSpeechState.activeSource === 'avatar';
 
   // Initialize based on mode
   useEffect(() => {
@@ -316,10 +314,8 @@ export default function AIAvatar({
             )}
             <span className="text-white">
               {isProcessing && !isTalking ? 'Thinking...' : 
-               mode === "lesson" && globalSpeechState.activeSource !== 'avatar' ? 
-               `${globalSpeechState.activeSource === 'lesson' ? 'Narrating' : 
-                 globalSpeechState.activeSource === 'ai-feedback' ? 'Analyzing' : 'Speaking'}...` : 
-               'Speaking'}
+               isTalking ? 'Speaking...' : 
+               'Ready'}
             </span>
           </div>
         )}
@@ -330,7 +326,7 @@ export default function AIAvatar({
           <div className="flex items-start gap-3">
             <MessageCircle className="w-5 h-5 text-cyan-400 mt-0.5 flex-shrink-0" />
             <p className="text-white text-sm leading-relaxed">
-              {conversationHistory.at(-1)?.content ?? ""}
+              {currentSpeechText || conversationHistory.at(-1)?.content || ""}
             </p>
           </div>
         </div>

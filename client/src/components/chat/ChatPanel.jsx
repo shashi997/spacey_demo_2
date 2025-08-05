@@ -2,13 +2,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, MessageSquare } from 'lucide-react';
-import { useCoordinatedSpeechSynthesis } from '../../hooks/useSpeechCoordination'; 
+import { useConversationManager } from '../../hooks/useConversationManager'; 
 
 const ChatPanel = ({ isOpen, onClose, chatHistory, onSendMessage }) => {
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
-  const { speak, cancel } = useCoordinatedSpeechSynthesis('chat'); // Use the speech synthesis hook
+  const { speakAsAvatar } = useConversationManager(); // Use avatar speech for all lesson chat
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -17,16 +17,10 @@ const ChatPanel = ({ isOpen, onClose, chatHistory, onSendMessage }) => {
   useEffect(() => {
     if (isOpen) {
       scrollToBottom();
-      // Speak the latest AI message when chatHistory changes
-      const latestMessage = chatHistory.length > 0 ? chatHistory[chatHistory.length - 1] : null;
-      if (latestMessage && latestMessage.sender === 'ai') {
-        speak(latestMessage.content);
-      }
-    } else {
-      // Stop speaking when chat closes
-      cancel();
+      // Speech is already handled by the conversation manager when responses are generated
+      // No need to speak again here to avoid duplicate voices
     }
-  }, [chatHistory, isOpen, speak, cancel]);
+  }, [chatHistory, isOpen]);
 
   const handleSendMessage = async () => {
     if (newMessage.trim() && !isLoading) {

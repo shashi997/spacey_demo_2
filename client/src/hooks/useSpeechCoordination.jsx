@@ -265,13 +265,9 @@ export const useCoordinatedSpeechSynthesis = (sourceId) => {
       console.error('Speech synthesis error:', error);
       setIsLoading(false);
       setIsSpeaking(false);
+      unregisterSpeechSource(sourceId);
       if (onEnd) onEnd();
-
-      if (window.speechSynthesis) {
-        const utterance = new SpeechSynthesisUtterance(textToSpeak);
-        utterance.onend = onEnd;
-        window.speechSynthesis.speak(utterance);
-      }
+      // Removed browser speech fallback to prevent multiple voices
     }
     // const synth = window.speechSynthesis;
 

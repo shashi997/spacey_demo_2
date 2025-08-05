@@ -1,5 +1,5 @@
 const { traitAnalyzer } = require('./traitAnalyzer');
-const {generateConversationalResponse} = require('./conversationalGenerator');
+const { aiOrchestrator } = require('./aiOrchestrator');
 
 /**
  * Handles and analyzes a user's interaction within a lesson.
@@ -7,7 +7,7 @@ const {generateConversationalResponse} = require('./conversationalGenerator');
 const handleLessonInteraction = async (req, res) => {
   try {
     // 1. Destructure the payload from the frontend
-    const { userResponse, userTags, currentBlock, lessonData } = req.body;
+    const { userResponse, userTags, currentBlock, lessonData, user } = req.body;
 
     // Basic validation
     if (!userResponse || !userTags || !currentBlock) {
@@ -20,48 +20,63 @@ const handleLessonInteraction = async (req, res) => {
       return res.status(400).json({ error: 'No analyzable text in user response.' });
     }
 
-    console.log(`Analyzing interaction: "${messageToAnalyze}" with tags: [${userTags.join(', ')}]`);
+    console.log(`📚 Analyzing lesson interaction via orchestrator: "${messageToAnalyze}" with tags: [${userTags.join(', ')}]`);
 
-    // 3. FIRST LLM CALL: Call the trait analyzer for structured data
-    const analysis = await traitAnalyzer.analyzeTraits(
-      messageToAnalyze,
-      `Lesson Choice in block: ${currentBlock.block_id}`,
-      userTags
-    );
-
-      console.log('Trait analysis results:', analysis);
-
-    // 4. SECOND LLM CALL: Prepare context and generate the conversational response.
-    const conversationalContext = {
-      lessonData,
-      currentBlock,
-      userResponse,
-      userTags,
-      analysis, // Pass the results of the first analysis as context
+    // 3. Route through AI Orchestrator for lesson analysis
+    const orchestratorRequest = {
+      type: 'lesson_analysis',
+      user: {
+        id: user?.id || 'anonymous',
+        name: user?.name || user?.displayName || 'Explorer',
+        email: user?.email || 'anonymous@example.com',
+        traits: [] // Will be populated by orchestrator
+      },
+      prompt: messageToAnalyze,
+      context: {
+        lessonData,
+        currentBlock,
+        userResponse,
+        userTags,
+        interactionContext: `Lesson Choice in block: ${currentBlock.block_id}`
+      }
     };
 
-    const conversationalMessage = await generateConversationalResponse(conversationalContext);
+    console.log('🚀 Routing lesson analysis to AI Orchestrator');
+    const orchestratorResponse = await aiOrchestrator.processRequest(orchestratorRequest);
 
- // 5. Construct the final payload for the frontend based on the interaction type.
-    // The frontend's `ReflectionBlock` is expecting a field named `ai_message`.
-    // The `reasoning` from our analysis is the perfect content for it.
+    // 4. Extract the analysis results from orchestrator metadata
+    const analysis = orchestratorResponse.metadata?.analysis || {
+      traits_to_add: [],
+      traits_to_remove: [],
+      confidence: 0.5,
+      reasoning: "Analysis completed via orchestrator",
+      method: "orchestrator_integrated"
+    };
+
+    console.log('🧠 Orchestrator analysis results:', analysis);
+
+    // 5. Construct the final payload for the frontend
     const responsePayload = {
-      ai_message: conversationalMessage || "Your action has been noted and is being processed.",
+      ai_message: orchestratorResponse.message || "Your action has been noted and is being processed.",
       added_traits: analysis.traits_to_add,
       removed_traits: analysis.traits_to_remove,
       analysis_method: analysis.method,
       confidence: analysis.confidence,
       reasoning: analysis.reasoning,
+      orchestrator: true
     };
 
-    console.log('Sending analysis to frontend:', responsePayload);
+    console.log('📤 Sending orchestrated analysis to frontend:', responsePayload);
     
     // 6. Send the successful response
     res.status(200).json(responsePayload);
 
   } catch (error) {
-    console.error('Error in handleLessonInteraction:', error);
-    res.status(500).json({ error: 'An error occurred during interaction analysis.' });
+    console.error('❌ Error in orchestrated lesson interaction:', error);
+    res.status(500).json({ 
+      error: 'An error occurred during interaction analysis.',
+      debug: { orchestrator: true, errorMessage: error.message }
+    });
   }
 };
 

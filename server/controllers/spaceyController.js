@@ -3,12 +3,14 @@ const { aiProviderManager } = require('./aiProviders');
 const { conversationMemory } = require('./conversationMemory');
 const { persistentMemory } = require('./persistentMemory');
 const { traitAnalyzer } = require('./traitAnalyzer');
+const { aiOrchestrator } = require('./aiOrchestrator'); // Add unified orchestrator
 
 console.log('🔧 SpaceyController loaded');
 console.log('🤖 Available AI providers:', Object.keys(aiProviderManager.getAvailableProviders()));
 console.log('🧠 Memory system loaded:', !!conversationMemory);
 console.log('💾 Persistent memory loaded:', !!persistentMemory);
 console.log('🎯 Trait analyzer loaded:', !!traitAnalyzer);
+console.log('🎭 AI Orchestrator loaded:', !!aiOrchestrator);
 
 // Initialize Pinecone retriever at startup
 pineconeRetriever.initialize().catch(err => {
@@ -251,167 +253,83 @@ Generate your avatar response now:
 // Unified chat handler for all request types
 const chatWithAI = async (req, res) => {
     try {
-        console.log('🎯 Unified chat request received:', req.body);
+        console.log('🎯 Unified chat request received via orchestrator:', req.body);
         
         const { prompt, user, type = 'unified_chat', visualContext, trigger, ...requestBody } = req.body;
         const userId = user?.id || 'anonymous';
         console.log('👤 User ID:', userId);
         console.log('🎭 Request type:', type);
 
-        // Case 1: Avatar-specific, non-prompt-based responses
+        // Map request types to orchestrator types
+        let orchestratorType;
+        let context = {};
+
         if (type === 'avatar_response' || type === 'personalized_compliment') {
-            const responseTrigger = type === 'personalized_compliment' ? 'compliment' : trigger;
-            const responseVisualContext = type === 'personalized_compliment' ? requestBody.visualAnalysis : visualContext;
-
-            if (!responseTrigger) {
-                return res.status(400).json({ error: "Avatar response requires a 'trigger'." });
-            }
-
-            console.log('🤖 Generating avatar response for trigger:', responseTrigger);
-            
-            const conversationSummary = await persistentMemory.summarizeContext(userId);
-            const enhancedContext = await persistentMemory.generateEnhancedContext(userId);
-            const conversationContext = { conversationSummary, ...enhancedContext };
-
-            const avatarPrompt = buildAvatarPrompt(responseTrigger, user, responseVisualContext, conversationContext);
-            
-            const response = await aiProviderManager.generateResponse(avatarPrompt);
-            console.log('✅ Avatar response generated:', response.substring(0, 100) + '...');
-
-            await persistentMemory.addInteraction(userId, `[AVATAR_${responseTrigger.toUpperCase()}]`, response, {
-                type: 'avatar_response',
-                trigger: responseTrigger,
-                visualContext: responseVisualContext,
-                timestamp: new Date().toISOString()
-            });
-
-            return res.json({ 
-                response,
-                type: 'avatar_response',
-                trigger: responseTrigger,
-                debug: {
-                    provider: aiProviderManager.defaultProvider,
-                    timestamp: new Date().toISOString()
-                }
-            });
-        }
-
-        // Case 2: Prompt-based chat (unified handler for all chat types)
-        if (!prompt) {
-            console.log('❌ No prompt provided for chat request');
-            return res.status(400).json({ 
-                error: "A prompt is required for this chat type.",
-                debug: { received: req.body, missing: "prompt field" }
-            });
-        }
-
-        console.log('💭 Unified chat processing for prompt:', prompt);
-
-        // 1. Get emotional state, merging various sources
-        let emotionalState = await persistentMemory.detectEmotionalState(userId, prompt);
-        const emotionSource = visualContext?.emotionalState || requestBody.emotionContext;
-        if (emotionSource && emotionSource.confidence > (emotionalState.confidence || 0)) {
-            console.log('🎭 Using enhanced emotion context from request');
-            emotionalState = {
-                emotion: emotionSource.emotion,
-                confidence: emotionSource.confidence,
-                visual: true,
-                textBased: emotionalState.emotion,
-                visualBased: emotionSource.emotion,
-                visualDescription: emotionSource.visualDescription
+            orchestratorType = 'avatar_response';
+            context = {
+                trigger: type === 'personalized_compliment' ? 'compliment' : trigger,
+                visualContext: type === 'personalized_compliment' ? requestBody.visualAnalysis : visualContext
+            };
+        } else {
+            orchestratorType = 'chat';
+            context = {
+                visualContext,
+                conversationHistory: requestBody.conversationHistory || [],
+                emotionContext: requestBody.emotionContext,
+                userActivity: requestBody.userActivity || 'active',
+                currentTopic: requestBody.currentTopic,
+                userMood: requestBody.userMood,
+                timeSinceLastInteraction: requestBody.timeSinceLastInteraction || 0
             };
         }
 
-        // 2. Get conversation context from persistent memory
-        const conversationSummary = await persistentMemory.summarizeContext(userId);
-        const learningStyle = await persistentMemory.getUserLearningStyle(userId);
-        const enhancedContext = await persistentMemory.generateEnhancedContext(userId);
-        
-        // 3. Build comprehensive context
-        const conversationContext = {
-            emotionalState,
-            conversationSummary,
-            learningStyle,
-            recentTopics: enhancedContext.recentTopics,
-            totalInteractions: enhancedContext.totalInteractions,
-            sessionInteractions: enhancedContext.sessionInteractions,
-            preferredTopics: enhancedContext.preferredTopics || [],
-            strugglingTopics: enhancedContext.strugglingTopics || [],
-            masteredConcepts: enhancedContext.masteredConcepts || [],
-            dominantMood: requestBody.userMood || enhancedContext.dominantMood,
-            averageMessageLength: enhancedContext.averageMessageLength,
-            topInterests: enhancedContext.topInterests || [],
-            userActivity: requestBody.userActivity || 'active',
-            currentTopic: requestBody.currentTopic,
-            timeSinceLastInteraction: requestBody.timeSinceLastInteraction || 0,
-            recentConversation: requestBody.conversationHistory || []
+        // Route through unified orchestrator
+        const orchestratorRequest = {
+            type: orchestratorType,
+            user: {
+                id: userId,
+                name: user?.name || user?.displayName || 'Explorer',
+                email: user?.email || 'anonymous@example.com',
+                traits: [] // Will be populated by orchestrator from persistent memory
+            },
+            prompt,
+            context
         };
 
-        // 4. Enhance prompt with visual context
-        let enhancedPrompt = prompt;
-        const visualDesc = visualContext?.visualDescription || requestBody.emotionContext?.visualDescription;
-        if (visualDesc) {
-            const emotionDesc = visualContext?.emotionalState || requestBody.emotionContext;
-            enhancedPrompt = `${prompt}\n\n[VISUAL CONTEXT: I can see that ${visualDesc}. The user appears ${emotionDesc.emotion} with ${Math.round(emotionDesc.confidence * 100)}% confidence.]`;
-        }
+        console.log('🚀 Routing to AI Orchestrator:', orchestratorType);
+        const response = await aiOrchestrator.processRequest(orchestratorRequest);
 
-        // 5. RAG Integration
-        console.log('Retrieving context from Pinecone...');
-        const retrievedContext = await pineconeRetriever.getRelevantContext(prompt);
-        console.log(retrievedContext ? `Found relevant context.` : 'No specific context found, proceeding with general knowledge.');
-
-        // 6. Build the final prompt
-        const fullPrompt = buildSystemPrompt(enhancedPrompt, user, conversationContext, retrievedContext);
-        console.log('📝 Unified prompt built with complete context');
-
-        // 7. Generate AI response
-        console.log('🤖 Generating unified Spacey response...');
-        const response = await aiProviderManager.generateResponse(fullPrompt);
-        console.log('✅ Unified response generated:', response.substring(0, 100) + '...');
-        
-        // 8. Store interaction
-        await persistentMemory.addInteraction(userId, prompt, response, {
-            emotionalState,
-            learningStyle,
-            timestamp: new Date().toISOString(),
-            provider: aiProviderManager.defaultProvider,
-            emotionalConfidence: emotionalState.confidence,
-            hasVisualContext: !!visualDesc,
-            conversationManagerContext: {
-                userActivity: requestBody.userActivity,
-                currentTopic: requestBody.currentTopic,
-                userMood: requestBody.userMood
-            },
-            type: 'unified_chat',
-            retrievedContext: retrievedContext ? retrievedContext.substring(0, 500) : undefined
-        });
-        
-        console.log('💾 Unified interaction saved to persistent memory');
-        
-        // 9. Send response
-        res.json({ 
-            message: response,
-            type: 'unified_chat',
+        // Format response for existing API consumers
+        const apiResponse = {
+            response: response.message,
+            type: response.type,
             debug: {
                 provider: aiProviderManager.defaultProvider,
-                emotionalState,
-                learningStyle,
-                hasVisualContext: !!visualDesc,
-                conversationManagerIntegration: true,
-                retrievedContext: !!retrievedContext,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                orchestrator: true,
+                emotionalState: response.metadata?.emotionalState,
+                learningStyle: response.metadata?.learningStyle,
+                hasVisualContext: !!visualContext,
+                retrievedContext: !!response.metadata?.retrievedContext
             }
-        });
+        };
+
+        // Include additional metadata for avatar responses
+        if (orchestratorType === 'avatar_response') {
+            apiResponse.trigger = context.trigger;
+        }
+
+        console.log('✅ Orchestrator response generated:', response.message.substring(0, 100) + '...');
+        return res.json(apiResponse);
 
     } catch (error) {
-        console.error("❌ Error in unified chat handler:", error);
-        res.status(500).json({ 
-            error: "Internal server error occurred.",
-            message: "Sorry, my circuits got a bit tangled! Give me a moment to recalibrate my stellar wit.",
-            debug: {
-                errorMessage: error.message,
-                stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-                timestamp: new Date().toISOString()
+        console.error('❌ Orchestrator error:', error);
+        return res.status(500).json({ 
+            error: "I encountered a cosmic anomaly while processing your request. Let me recalibrate...",
+            debug: { 
+                error: error.message,
+                timestamp: new Date().toISOString(),
+                orchestrator: true
             }
         });
     }

@@ -347,10 +347,11 @@ Format your response to include both immediate feedback and any trait analysis.`
 
         const response = await handleUserChat(storyPrompt, currentUser);
         
-        if (response?.message) {
-          setLastAnalysis({ ai_message: response.message });
-          setBackendAiMessage(response.message);
-          setAnalysisLog(prevLog => [...prevLog, response.message]);
+        if (response?.response || response?.message) {
+          const aiMessage = response.response || response.message;
+          setLastAnalysis({ ai_message: aiMessage });
+          setBackendAiMessage(aiMessage);
+          setAnalysisLog(prevLog => [...prevLog, aiMessage]);
         }
 
         // Handle trait updates

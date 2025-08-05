@@ -92,7 +92,9 @@ export const ConversationManagerProvider = ({ children }) => {
   const buildConversationContext = useCallback(() => {
     const recentHistory = conversationHistory.slice(-8).map(entry => ({
       type: entry.type,
-      content: entry.content.length > 500 ? entry.content.substring(0, 500) + '...' : entry.content,
+      content: entry.content && typeof entry.content === 'string' && entry.content.length > 500 
+        ? entry.content.substring(0, 500) + '...' 
+        : entry.content || '',
       timestamp: entry.timestamp
     }));
     
@@ -136,9 +138,9 @@ export const ConversationManagerProvider = ({ children }) => {
       // Add appropriate history entry
       if (type === 'unified_chat') {
         addToHistory('user', prompt);
-        addToHistory('spacey', response.message, { responseType: type, context: conversationContext });
+        addToHistory('spacey', response.response || response.message, { responseType: type, context: conversationContext });
       } else {
-        addToHistory('spacey', response.response, { 
+        addToHistory('spacey', response.response || response.message, { 
           responseType: type, 
           trigger: options.trigger,
           context: conversationContext 

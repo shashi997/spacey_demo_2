@@ -1,6 +1,7 @@
 const express = require('express');
 const { chatWithAI, getUserTraits, getContextSummary, saveChoice, getUserTraitCounts, getMissionHistory, saveFinalSummary, canUnlock } = require('../controllers/spaceyController');
 const { handleLessonInteraction } = require('../controllers/lessonController');
+const { aiOrchestrator } = require('../controllers/aiOrchestrator');
 
 const router = express.Router();
 
@@ -49,5 +50,24 @@ router.post('/profile/saveFinalSummary', saveFinalSummary);
 
 // GET route for unlock logic
 router.get('/profile/canUnlock', canUnlock);
+
+// Test endpoint for AI Orchestrator
+router.post('/orchestrator/test', async (req, res) => {
+  try {
+    console.log('🧪 Testing AI Orchestrator directly');
+    const response = await aiOrchestrator.processRequest(req.body);
+    res.json({
+      success: true,
+      orchestratorResponse: response,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Orchestrator test error:', error);
+    res.status(500).json({
+      error: 'Orchestrator test failed',
+      message: error.message
+    });
+  }
+});
 
 module.exports = router;

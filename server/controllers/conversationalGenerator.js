@@ -1,4 +1,5 @@
 const { aiProviderManager } = require('./aiProviders');
+const { aiOrchestrator } = require('./aiOrchestrator');
 
 /**
  * Generates a personalized, conversational response from the AI tutor "Spacey".

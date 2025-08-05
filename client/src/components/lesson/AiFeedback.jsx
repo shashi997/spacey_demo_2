@@ -3,26 +3,17 @@
 import React, { useEffect } from 'react';
 import { Bot, Volume2, SkipForward } from 'lucide-react';
 import { useSpeechCoordination } from '../../hooks/useSpeechCoordination.jsx';
-import { useConversationManager } from '../../hooks/useConversationManager.jsx';
 
 const AiFeedback = ({ message, onContinue }) => {
   const { globalSpeechState } = useSpeechCoordination();
-  const { startNarration } = useConversationManager();
   
   // Check if avatar is speaking
   const isSpeaking = globalSpeechState.isAnySpeaking && globalSpeechState.activeSource === 'avatar';
 
   useEffect(() => {
-    if (message) {
-      // Use conversation manager to speak through avatar
-      startNarration(message, {
-        onEnd: () => {
-          // This callback can be used for logic after speech finishes,
-          // but the continue button is always active for a better UX.
-        },
-      });
-    }
-  }, [message, startNarration]);
+    // No need to call startNarration here since the message is already spoken
+    // by handleUserChat in LessonPage when the analysis response is generated
+  }, [message]);
 
   const handleContinueClick = () => {
     onContinue(); // Call the function to proceed to the next block

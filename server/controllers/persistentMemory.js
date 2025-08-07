@@ -1,5 +1,6 @@
 const fs = require('fs').promises;
 const path = require('path');
+const { knowledgeGraphManager } = require('./knowledgeGraphManager');
 
 class PersistentMemoryManager {
   constructor(dataDir = './data/memory') {
@@ -62,6 +63,8 @@ class PersistentMemoryManager {
       // Create new profile if doesn't exist
       if (error.code === 'ENOENT') {
         const newProfile = this.createNewUserProfile(userId);
+        // Initialize the knowledge graph for the new user
+        newProfile.knowledgeGraph = knowledgeGraphManager.initializeGraph(userId);
         await this.saveUserProfile(userId, newProfile);
         return newProfile;
       }
@@ -133,6 +136,9 @@ class PersistentMemoryManager {
         gender: null,
         lastUpdated: null
       },
+
+      // --- NEW: Knowledge Graph ---
+      knowledgeGraph: null, // Will be initialized on first use
 
       // --- NEW: Missions and Traits ---
       missions_completed: [], // Array of { mission_id, completed_at, choices, final_summary }
@@ -732,6 +738,39 @@ class PersistentMemoryManager {
     // Returns true if requiredMissionId is completed
     const profile = await this.getUserProfile(userId);
     return profile.missions_completed.some(m => m.mission_id === requiredMissionId && m.completed_at);
+  }
+
+  // === KNOWLEDGE GRAPH API ===
+
+  async getUserKnowledgeGraph(userId) {
+    const profile = await this.getUserProfile(userId);
+    if (!profile.knowledgeGraph) {
+      // If a user exists but has no graph, initialize it.
+      profile.knowledgeGraph = knowledgeGraphManager.initializeGraph(userId);
+      await this.saveUserProfile(userId, profile);
+    }
+    return profile.knowledgeGraph;
+  }
+
+  async updateUserKnowledgeGraph(userId, conceptName, masteryChange, reason) {
+    const graph = await this.getUserKnowledgeGraph(userId);
+    const currentNode = graph.nodes[conceptName] || { mastery: 0 };
+    const newMastery = currentNode.mastery + masteryChange;
+    
+    knowledgeGraphManager.updateMastery(graph, conceptName, newMastery, reason);
+    
+    const profile = await this.getUserProfile(userId);
+    profile.knowledgeGraph = graph;
+    await this.saveUserProfile(userId, profile);
+  }
+
+  async addKnowledgeGraphRelationship(userId, sourceConcept, targetConcept, relationshipType) {
+    const graph = await this.getUserKnowledgeGraph(userId);
+    knowledgeGraphManager.addRelationship(graph, sourceConcept, targetConcept, relationshipType);
+
+    const profile = await this.getUserProfile(userId);
+    profile.knowledgeGraph = graph;
+    await this.saveUserProfile(userId, profile);
   }
 }
 

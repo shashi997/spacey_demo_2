@@ -1,6 +1,7 @@
 const { aiProviderManager } = require('./aiProviders');
 const { persistentMemory } = require('./persistentMemory');
 const { traitAnalyzer } = require('./traitAnalyzer');
+const { knowledgeGraphManager } = require('./knowledgeGraphManager');
 const pineconeRetriever = require('./pineconeRetriever');
 
 /**
@@ -74,7 +75,8 @@ class AIOrchestrator {
       enhancedContext,
       emotionalState,
       traitAnalysis,
-      retrievedContext
+      retrievedContext,
+      knowledgeGraph
     ] = await Promise.all([
       persistentMemory.summarizeContext(userId),
       persistentMemory.generateEnhancedContext(userId),
@@ -82,7 +84,8 @@ class AIOrchestrator {
       prompt && context.lessonData ? 
         traitAnalyzer.analyzeTraits(prompt, context.lessonData?.title || 'general', user.traits || []) : 
         null,
-      prompt ? pineconeRetriever.getRelevantContext(prompt) : null
+      prompt ? pineconeRetriever.getRelevantContext(prompt) : null,
+      persistentMemory.getUserKnowledgeGraph(userId) // Fetch the knowledge graph
     ]);
 
     return {
@@ -95,6 +98,7 @@ class AIOrchestrator {
       emotionalState,
       traitAnalysis,
       retrievedContext,
+      knowledgeGraph,
       
       // Computed metadata
       userProfile: {
@@ -116,17 +120,21 @@ class AIOrchestrator {
    * Handles general chat interactions
    */
   async handleChatInteraction(context) {
-    const { prompt, userProfile, conversationSummary, emotionalState, retrievedContext } = context;
+    const { prompt, userProfile, conversationSummary, emotionalState, retrievedContext, knowledgeGraph } = context;
 
     const chatPrompt = this.buildChatPrompt({
       userPrompt: prompt,
       userProfile,
       conversationSummary,
       emotionalState,
-      retrievedContext
+      retrievedContext,
+      knowledgeGraph
     });
 
     const response = await aiProviderManager.generateResponse(chatPrompt);
+
+    // Update knowledge graph based on interaction
+    await this.updateKnowledgeFromInteraction(userProfile.id, prompt, response);
 
     return {
       message: response,
@@ -240,7 +248,9 @@ class AIOrchestrator {
   /**
    * Builds chat-specific prompts
    */
-  buildChatPrompt({ userPrompt, userProfile, conversationSummary, emotionalState, retrievedContext }) {
+  buildChatPrompt({ userPrompt, userProfile, conversationSummary, emotionalState, retrievedContext, knowledgeGraph }) {
+    const knowledgeGaps = knowledgeGraphManager.getKnowledgeGaps(knowledgeGraph);
+
     return `You are **Spacey**, the witty AI assistant combining Baymax's warm empathy with JARVIS's clever sophistication.
 
 🌟 **PERSONALITY CORE**: 
@@ -251,6 +261,10 @@ class AIOrchestrator {
 🧠 **CONVERSATION CONTEXT**: ${conversationSummary}
 😊 **USER'S EMOTIONAL STATE**: ${emotionalState?.emotion || 'neutral'} (confidence: ${Math.round((emotionalState?.confidence || 0) * 100)}%)
 👤 **USER PROFILE**: ${userProfile.name}, traits: [${userProfile.traits.join(', ')}]
+
+📈 **KNOWLEDGE GRAPH SUMMARY**:
+- Mastered Concepts: ${knowledgeGaps.mastered.join(', ') || 'None yet'}
+- Struggling Concepts: ${knowledgeGaps.struggling.join(', ') || 'None yet'}
 
 ${retrievedContext ? `📚 **RELEVANT KNOWLEDGE**: ${retrievedContext}` : ''}
 
@@ -390,6 +404,38 @@ Provide an intelligent tutoring response:`;
     }
     
     return recommendations;
+  }
+
+  /**
+   * Updates the knowledge graph based on the interaction.
+   */
+  async updateKnowledgeFromInteraction(userId, prompt, response) {
+    // This is a simplified example. A more advanced implementation would
+    // use NLP to extract concepts and determine mastery changes.
+    const concepts = this.extractConcepts(prompt + ' ' + response);
+    
+    for (const concept of concepts) {
+      let masteryChange = 0.05; // Default small increase
+      if (prompt.toLowerCase().includes('confused') || prompt.toLowerCase().includes("don't understand")) {
+        masteryChange = -0.1; // Decrease mastery if user is confused
+      }
+      await persistentMemory.updateUserKnowledgeGraph(userId, concept, masteryChange, 'Chat interaction');
+    }
+  }
+
+  /**
+   * Extracts concepts from a text string (simple keyword matching).
+   */
+  extractConcepts(text) {
+    const concepts = [];
+    const lowerText = text.toLowerCase();
+    // This would be expanded with a more robust concept dictionary
+    if (lowerText.includes('black hole')) concepts.push('Black Holes');
+    if (lowerText.includes('general relativity')) concepts.push('General Relativity');
+    if (lowerText.includes('gravity')) concepts.push('Gravity');
+    if (lowerText.includes('mars')) concepts.push('Mars');
+    if (lowerText.includes('solar panel')) concepts.push('Solar Panels');
+    return [...new Set(concepts)]; // Return unique concepts
   }
 
   /**

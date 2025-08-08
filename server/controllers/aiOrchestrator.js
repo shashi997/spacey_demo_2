@@ -4,6 +4,22 @@ const { traitAnalyzer } = require('./traitAnalyzer');
 const { knowledgeGraphManager } = require('./knowledgeGraphManager');
 const pineconeRetriever = require('./pineconeRetriever');
 
+// Optional RAG chain (LangChain). Loaded lazily to avoid hard dependency at boot.
+let ragChatChain = null;
+async function getRagChatChain() {
+  if (ragChatChain) return ragChatChain;
+  if (process.env.RAG_ENABLED !== 'true') return null;
+  try {
+    // Dynamic import to keep CommonJS compatibility
+    const { createRagChatChain } = await import('../rag/chatChain.mjs');
+    ragChatChain = await createRagChatChain();
+    return ragChatChain;
+  } catch (e) {
+    console.error('Failed to initialize RAG chat chain:', e);
+    return null;
+  }
+}
+
 /**
  * Unified AI Orchestrator
  * Centralizes all AI request handling with consistent context building,
@@ -70,6 +86,7 @@ class AIOrchestrator {
     const { user, context = {}, prompt } = request;
 
     // Parallel context gathering for performance
+    const useLegacyRetrieval = process.env.RAG_ENABLED !== 'true';
     const [
       conversationSummary,
       enhancedContext,
@@ -84,7 +101,7 @@ class AIOrchestrator {
       prompt && context.lessonData ? 
         traitAnalyzer.analyzeTraits(prompt, context.lessonData?.title || 'general', user.traits || []) : 
         null,
-      prompt ? pineconeRetriever.getRelevantContext(prompt) : null,
+      useLegacyRetrieval ? (prompt ? pineconeRetriever.getRelevantContext(prompt) : null) : null,
       persistentMemory.getUserKnowledgeGraph(userId) // Fetch the knowledge graph
     ]);
 
@@ -122,6 +139,63 @@ class AIOrchestrator {
   async handleChatInteraction(context) {
     const { prompt, userProfile, conversationSummary, emotionalState, retrievedContext, knowledgeGraph } = context;
 
+    // Try RAG path first if enabled
+    const chain = await getRagChatChain();
+    if (chain) {
+      try {
+        const filters = {};
+        // If lesson context exists within enhanced context, pass metadata
+        if (context?.context?.lessonContext?.mission_id) {
+          filters.lessonId = context.context.lessonContext.mission_id;
+        }
+        // Use knowledge graph hints as concept tags
+        if (knowledgeGraph && Object.keys(knowledgeGraph.nodes || {}).length > 0) {
+          filters.concepts = Object.keys(knowledgeGraph.nodes);
+        }
+
+        const ragResult = await chain.invoke({
+          input: prompt,
+          userProfile,
+          conversationSummary,
+          emotionalState,
+          filters
+        });
+
+        const message = ragResult?.output || ragResult?.text || ragResult;
+        const citations = ragResult?.citations || [];
+
+        await this.updateKnowledgeFromInteraction(userProfile.id, prompt, message);
+
+        // If RAG found no documents, fall back to general Spacey prompt for broad Q&A
+        if ((ragResult?.retrievedCount || 0) === 0) {
+          console.log('ℹ️ RAG returned 0 docs — falling back to general Spacey prompt');
+          const fallbackPrompt = this.buildChatPrompt({
+            userPrompt: prompt,
+            userProfile,
+            conversationSummary,
+            emotionalState,
+            retrievedContext: null,
+            knowledgeGraph
+          });
+          const fallbackMessage = await aiProviderManager.generateResponse(fallbackPrompt);
+          return {
+            message: fallbackMessage,
+            type: 'chat_response',
+            metadata: { emotionalState, hasRetrievedContext: false, citations: [] }
+          };
+        }
+
+        return {
+          message,
+          type: 'chat_response',
+          metadata: { emotionalState, hasRetrievedContext: true, citations }
+        };
+      } catch (err) {
+        console.error('RAG chain failed, falling back to legacy prompt:', err.message);
+      }
+    }
+
+    // Legacy non-RAG path
     const chatPrompt = this.buildChatPrompt({
       userPrompt: prompt,
       userProfile,
@@ -132,18 +206,11 @@ class AIOrchestrator {
     });
 
     const response = await aiProviderManager.generateResponse(chatPrompt);
-
-    // Update knowledge graph based on interaction
     await this.updateKnowledgeFromInteraction(userProfile.id, prompt, response);
-
     return {
       message: response,
       type: 'chat_response',
-      metadata: {
-        emotionalState,
-        hasRetrievedContext: !!retrievedContext,
-        responseLength: response.length
-      }
+      metadata: { emotionalState, hasRetrievedContext: !!retrievedContext }
     };
   }
 

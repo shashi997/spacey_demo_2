@@ -10,10 +10,14 @@ console.log('💾 Persistent memory loaded:', !!persistentMemory);
 console.log('🎯 Trait analyzer loaded:', !!traitAnalyzer);
 console.log('🎭 AI Orchestrator loaded:', !!aiOrchestrator);
 
-// Initialize Pinecone retriever at startup
+// Initialize legacy Pinecone retriever only when RAG is disabled
+if (process.env.RAG_ENABLED !== 'true') {
 pineconeRetriever.initialize().catch(err => {
   console.error("Failed to initialize Pinecone Retriever on startup:", err);
 });
+} else {
+  console.log('ℹ️ Skipping legacy Pinecone retriever init (RAG_ENABLED=true)');
+}
 
 const buildSystemPrompt = (userPrompt, userInfo = {}, conversationContext = {}, retrievedContext = "") => {
   const {

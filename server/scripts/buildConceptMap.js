@@ -5,7 +5,7 @@ const { Pinecone } = require('@pinecone-database/pinecone');
 
 // --- CONFIGURATION ---
 const LESSONS_DIR = path.resolve(__dirname, '../../client/public/lessons');
-const PINECONE_INDEX_NAME = 'master-concept-map';
+const PINECONE_INDEX_NAME = process.env.RAG_INDEX_NAME || 'lessons-v1';
 
 // --- MAIN SCRIPT ---
 

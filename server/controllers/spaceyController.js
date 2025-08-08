@@ -1,13 +1,11 @@
 const pineconeRetriever = require('./pineconeRetriever');
 const { aiProviderManager } = require('./aiProviders');
-const { conversationMemory } = require('./conversationMemory');
 const { persistentMemory } = require('./persistentMemory');
 const { traitAnalyzer } = require('./traitAnalyzer');
 const { aiOrchestrator } = require('./aiOrchestrator'); // Add unified orchestrator
 
 console.log('🔧 SpaceyController loaded');
 console.log('🤖 Available AI providers:', Object.keys(aiProviderManager.getAvailableProviders()));
-console.log('🧠 Memory system loaded:', !!conversationMemory);
 console.log('💾 Persistent memory loaded:', !!persistentMemory);
 console.log('🎯 Trait analyzer loaded:', !!traitAnalyzer);
 console.log('🎭 AI Orchestrator loaded:', !!aiOrchestrator);

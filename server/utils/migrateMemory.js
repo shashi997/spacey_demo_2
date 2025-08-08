@@ -1,4 +1,11 @@
-const { conversationMemory } = require('../controllers/conversationMemory');
+let conversationMemory = null;
+try {
+  // Optional legacy dependency; may not exist after cleanup
+  // eslint-disable-next-line global-require, import/no-unresolved
+  conversationMemory = require('../controllers/conversationMemory').conversationMemory;
+} catch (e) {
+  console.log('ℹ️ Legacy conversationMemory not found. Migration will be skipped if no data.');
+}
 const { persistentMemory } = require('../controllers/persistentMemory');
 
 class MemoryMigrationUtility {
@@ -10,6 +17,13 @@ class MemoryMigrationUtility {
     console.log('🔄 Starting memory migration from in-memory to persistent storage...');
     
     try {
+      // No legacy data to migrate
+      if (!conversationMemory || !conversationMemory.conversations) {
+        console.log('📭 No legacy memory system detected. Skipping migration.');
+        this.migrationComplete = true;
+        return { success: true, migratedUsers: 0, migratedInteractions: 0 };
+      }
+
       // Get all user data from the old memory system
       const userIds = Array.from(conversationMemory.conversations.keys());
       
@@ -56,7 +70,9 @@ class MemoryMigrationUtility {
       }
 
       // Create backup of old system data
-      await this.createBackup(conversationMemory.conversations);
+      if (conversationMemory && conversationMemory.conversations) {
+        await this.createBackup(conversationMemory.conversations);
+      }
 
       this.migrationComplete = true;
       
@@ -203,6 +219,10 @@ class MemoryMigrationUtility {
     console.log('🔍 Verifying migration...');
     
     try {
+      if (!conversationMemory || !conversationMemory.conversations) {
+        console.log('✅ No legacy memory to verify.');
+        return { success: true, verified: true };
+      }
       const oldUserIds = Array.from(conversationMemory.conversations.keys());
       
       if (oldUserIds.length === 0) {

@@ -30,7 +30,7 @@ export const synthesizeSpeech = async (text, options = {}) => {
                 model_id: 'eleven_monolingual_v1',
                 voice_settings: {
                     stability: options.stability ??  0.5,
-                    similarity_boost: options.similarity_bosst ?? 0.75,
+                    similarity_boost: options.similarity_boost ?? 0.75,
                 },
             })            
         });

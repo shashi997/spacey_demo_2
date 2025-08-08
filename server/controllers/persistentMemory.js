@@ -172,7 +172,7 @@ class PersistentMemoryManager {
         completed_at: mission.completed_at,
         score: this.calculateMissionScore(mission),
         traits_demonstrated: mission.traits_demonstrated || [],
-        final_sumamry: mission.final_summary || null
+        final_summary: mission.final_summary || null
       }));
     } catch (error) {
       console.error('Error in getUserMissions:', error);
@@ -184,7 +184,7 @@ class PersistentMemoryManager {
     let score = 0;
     if (mission.completed_at) score += 50;
     if (mission.choices?.length) score += mission.choices.length * 10;
-    if (mission.tratis_demonstrated?.length) score += mission.tratis_demonstrated.length * 5;
+    if (mission.traits_demonstrated?.length) score += mission.traits_demonstrated.length * 5;
     return Math.min(score, 100);
   }
   async getUserTraits(userId) {
@@ -195,7 +195,7 @@ class PersistentMemoryManager {
         bold: profile.traits?.bold || 0,
         creative: profile.traits?.creative || 0,
         confidence: profile.traits?.confidence || 0,
-        lastUpdated: profile.tratis?.lastUpdated || new Date().toISOString()
+        lastUpdated: profile.traits?.lastUpdated || new Date().toISOString()
       };
     } catch (error) {
       console.error('Error in getUserTraits:', error);

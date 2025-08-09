@@ -705,10 +705,7 @@ class PersistentMemoryManager {
     }
   }
 
-  async getUserTraits(userId) {
-    const profile = await this.getUserProfile(userId);
-    return profile.traits || {};
-  }
+  // Removed duplicate getUserTraits definition to avoid inconsistent shapes
 
   async getMissionHistory(userId) {
     const profile = await this.getUserProfile(userId);

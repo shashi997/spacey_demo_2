@@ -5,7 +5,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js",
-    "dev": "nodemon index.js",
+    "dev": "nodemon --ignore data/** --ignore ./data/** --ignore client/** --ignore node_modules/** index.js",
     "migrate": "node scripts/migrate.js",
     "migrate:verify": "node scripts/migrate.js --verify-only",
     "test:memory": "node scripts/testPersistentMemory.js",

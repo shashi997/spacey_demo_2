@@ -175,7 +175,8 @@ class AIOrchestrator {
             conversationSummary,
             emotionalState,
             retrievedContext: null,
-            knowledgeGraph
+            knowledgeGraph,
+            context: context.context
           });
           const fallbackMessage = await aiProviderManager.generateResponse(fallbackPrompt);
           return {
@@ -202,7 +203,8 @@ class AIOrchestrator {
       conversationSummary,
       emotionalState,
       retrievedContext,
-      knowledgeGraph
+      knowledgeGraph,
+      context: context.context
     });
 
     const response = await aiProviderManager.generateResponse(chatPrompt);
@@ -222,8 +224,16 @@ class AIOrchestrator {
       context: { lessonData, currentBlock, userResponse }, 
       userProfile, 
       traitAnalysis, 
-      emotionalState 
+      emotionalState,
+      prompt
     } = context;
+
+    // Ensure we have a trait analysis object (fallback if not provided)
+    const effectiveTraitAnalysis = traitAnalysis || await traitAnalyzer.analyzeTraits(
+      userResponse?.ai_reaction || userResponse?.text || prompt || '',
+      lessonData?.title || 'general',
+      userProfile?.traits || []
+    );
 
     // Build storytelling prompt with trait analysis
     const analysisPrompt = this.buildLessonAnalysisPrompt({
@@ -231,7 +241,7 @@ class AIOrchestrator {
       currentBlock,
       userResponse,
       userProfile,
-      traitAnalysis,
+      traitAnalysis: effectiveTraitAnalysis,
       emotionalState
     });
 
@@ -240,13 +250,14 @@ class AIOrchestrator {
     return {
       message: response,
       type: 'lesson_analysis',
-      addedTraits: traitAnalysis?.traits_to_add || [],
-      removedTraits: traitAnalysis?.traits_to_remove || [],
-      reasoning: traitAnalysis?.reasoning,
+      addedTraits: effectiveTraitAnalysis?.traits_to_add || [],
+      removedTraits: effectiveTraitAnalysis?.traits_to_remove || [],
+      reasoning: effectiveTraitAnalysis?.reasoning,
       metadata: {
         blockId: currentBlock.block_id,
         blockType: currentBlock.type,
-        confidence: traitAnalysis?.confidence || 0
+        confidence: effectiveTraitAnalysis?.confidence || 0,
+        analysis: effectiveTraitAnalysis
       }
     };
   }
@@ -315,19 +326,66 @@ class AIOrchestrator {
   /**
    * Builds chat-specific prompts
    */
-  buildChatPrompt({ userPrompt, userProfile, conversationSummary, emotionalState, retrievedContext, knowledgeGraph }) {
+  buildChatPrompt({ userPrompt, userProfile, conversationSummary, emotionalState, retrievedContext, knowledgeGraph, context: rawContext }) {
     const knowledgeGaps = knowledgeGraphManager.getKnowledgeGaps(knowledgeGraph);
+
+    // Pull additional context from the request (conversation manager data)
+    const convo = (rawContext && Array.isArray(rawContext.conversationHistory)) ? rawContext.conversationHistory : [];
+    const recentConversation = convo.slice(-5).map(msg => `${msg.type === 'user' ? '👤 User' : '🤖 Spacey'}: ${msg.content}`).join('\n');
+    const userActivity = rawContext?.userActivity || 'active';
+    const currentTopic = rawContext?.currentTopic || 'general';
+    const userMood = rawContext?.userMood || emotionalState?.emotion || 'neutral';
+    const timeSinceLastInteraction = rawContext?.timeSinceLastInteraction ?? 0;
+
+    // Dynamic personality adjustments based on emotion (from SpaceyController best bits)
+    let responseStyle = 'balanced, witty, supportive';
+    switch ((emotionalState?.emotion || '').toLowerCase()) {
+      case 'frustrated':
+        responseStyle = 'patient, reassuring, gently witty';
+        break;
+      case 'excited':
+        responseStyle = 'energetic, clever, enthusiastic';
+        break;
+      case 'engaged':
+        responseStyle = 'confident, informative, cleverly supportive';
+        break;
+      case 'uncertain':
+        responseStyle = 'clarifying, gentle, confidently witty';
+        break;
+      case 'still_confused':
+        responseStyle = 'simplified, encouraging, patiently clever';
+        break;
+      default:
+        responseStyle = 'balanced, witty, supportive';
+    }
+
+    // Learning style adjustment text
+    let learningAdjustment = 'Adapt explanation style based on their response.';
+    switch ((userProfile?.learningStyle || '').toLowerCase()) {
+      case 'detail_seeker':
+        learningAdjustment = 'Offer detailed explanations, but keep it engaging.';
+        break;
+      case 'quick_learner':
+        learningAdjustment = 'Be concise but clever.';
+        break;
+      case 'visual_learner':
+        learningAdjustment = 'Use vivid examples and analogies.';
+        break;
+    }
 
     return `You are **Spacey**, the witty AI assistant combining Baymax's warm empathy with JARVIS's clever sophistication.
 
-🌟 **PERSONALITY CORE**: 
+🌟 **PERSONALITY CORE**:
 - Baymax's traits: Caring, patient, genuinely helpful, emotionally attuned
 - JARVIS's traits: Clever, sophisticated, subtly witty, never condescending
 - Balance: 60% supportive warmth, 40% playful wit
 
 🧠 **CONVERSATION CONTEXT**: ${conversationSummary}
-😊 **USER'S EMOTIONAL STATE**: ${emotionalState?.emotion || 'neutral'} (confidence: ${Math.round((emotionalState?.confidence || 0) * 100)}%)
+🧩 **RECENT CONVERSATION**:
+${recentConversation || 'This is the beginning of our conversation.'}
+😊 **USER STATE**: mood=${userMood}, activity=${userActivity}, last_interaction=${timeSinceLastInteraction}s ago
 👤 **USER PROFILE**: ${userProfile.name}, traits: [${userProfile.traits.join(', ')}]
+🧭 **TOPIC**: ${currentTopic}
 
 📈 **KNOWLEDGE GRAPH SUMMARY**:
 - Mastered Concepts: ${knowledgeGaps.mastered.join(', ') || 'None yet'}
@@ -337,7 +395,14 @@ ${retrievedContext ? `📚 **RELEVANT KNOWLEDGE**: ${retrievedContext}` : ''}
 
 🗨️ **USER'S MESSAGE**: "${userPrompt}"
 
-Respond as Spacey with your unique blend of warmth and wit (2-4 sentences):`;
+🎯 **RESPONSE REQUIREMENTS**:
+1. Length: 2-4 sentences
+2. Tone: ${responseStyle}
+3. Learning Adjustment: ${learningAdjustment}
+4. Reference context or emotion naturally when helpful
+5. Be memorable, helpful, and never condescending
+
+Respond as Spacey now:`;
   }
 
   /**
@@ -379,8 +444,42 @@ Respond as if debriefing after a critical mission decision. Use vivid space imag
 - Confidence: ${Math.round((visualContext.confidence || 0) * 100)}%
 ` : '🎭 **VISUAL ANALYSIS**: No camera feed available';
 
-    return `You are **Spacey**, responding as an avatar that can "see" the user.
+    const tone = trigger === 'encouragement' ? 'uplifting and motivating' : trigger === 'emotion_change' ? 'empathetic and supportive' : trigger === 'compliment' ? 'warm and genuine' : 'friendly and engaging';
 
+    const triggerGuidance = {
+      emotion_change: `
+🎯 **AVATAR RESPONSE TYPE**: Emotion Change Response
+Guidelines:
+- Reference what you "observe" from their expressions
+- Be empathetic to their emotional shift
+- Keep it conversational and supportive
+`,
+      idle: `
+🎯 **AVATAR RESPONSE TYPE**: Idle Check-In
+Guidelines:
+- Be welcoming and inviting
+- Reference their learning journey or interests
+- Encourage exploration; keep it light
+`,
+      encouragement: `
+🎯 **AVATAR RESPONSE TYPE**: Encouragement Boost
+Guidelines:
+- Focus on their strengths and progress
+- Reference their personality traits positively
+- Be enthusiastic but authentic
+`,
+      compliment: `
+🎯 **AVATAR RESPONSE TYPE**: Personalized Compliment
+Guidelines:
+- Reference what you "see" in their expression or demeanor
+- Connect it to their personality traits
+- Make it specific and genuine
+`
+    };
+
+    return `You are **Spacey**, the witty AI avatar who can "see" the user.
+
+🌟 Personality: 60% Baymax warmth, 40% JARVIS wit
 ${visualInfo}
 
 👤 **USER INFO**:
@@ -388,9 +487,15 @@ ${visualInfo}
 - Personality traits: ${userProfile.traits.join(', ')}
 - Conversation context: ${conversationSummary}
 
-🎯 **AVATAR RESPONSE TYPE**: ${trigger}
+${triggerGuidance[trigger] || `🎯 **AVATAR RESPONSE TYPE**: ${trigger}`}
 
-Generate a contextual avatar response (1-2 sentences):`;
+📏 Requirements:
+1. Length: 1-3 sentences
+2. Tone: ${tone}
+3. Reference visual cues naturally when available
+4. Personalize using their traits/context
+
+Respond as Spacey now:`;
   }
 
   /**

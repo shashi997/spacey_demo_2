@@ -1,256 +1,19 @@
-const pineconeRetriever = require('./pineconeRetriever');
-const { aiProviderManager } = require('./aiProviders');
+// Removed direct pinecone init and unused provider import to keep controller lean
 const { persistentMemory } = require('./persistentMemory');
 const { traitAnalyzer } = require('./traitAnalyzer');
 const { aiOrchestrator } = require('./aiOrchestrator'); // Add unified orchestrator
 
 console.log('🔧 SpaceyController loaded');
-console.log('🤖 Available AI providers:', Object.keys(aiProviderManager.getAvailableProviders()));
 console.log('💾 Persistent memory loaded:', !!persistentMemory);
 console.log('🎯 Trait analyzer loaded:', !!traitAnalyzer);
 console.log('🎭 AI Orchestrator loaded:', !!aiOrchestrator);
 
-// Initialize legacy Pinecone retriever only when RAG is disabled
-if (process.env.RAG_ENABLED !== 'true') {
-pineconeRetriever.initialize().catch(err => {
-  console.error("Failed to initialize Pinecone Retriever on startup:", err);
-});
-} else {
-  console.log('ℹ️ Skipping legacy Pinecone retriever init (RAG_ENABLED=true)');
-}
+// Controller should not perform startup side-effects. Pinecone initializes lazily in retriever.
 
-const buildSystemPrompt = (userPrompt, userInfo = {}, conversationContext = {}, retrievedContext = "") => {
-  const {
-    name = 'Explorer',
-    traits = ['curious'],
-    tone = 'supportive, witty',
-    location = 'dashboard',
-    context = 'User is exploring the main dashboard and interacting with Spacey.'
-  } = userInfo;
-
-  const {
-    emotionalState = { emotion: 'neutral', confidence: 0.5 },
-    conversationSummary = 'New user - no previous interactions.',
-    learningStyle = 'unknown',
-    recentTopics = [],
-    totalInteractions = 0,
-    sessionInteractions = 0,
-    preferredTopics = [],
-    strugglingTopics = [],
-    masteredConcepts = [],
-    dominantMood = 'neutral',
-    averageMessageLength = 0,
-    topInterests = [],
-    recentConversation = []
-  } = conversationContext;
-
-  // Dynamic personality adjustments based on emotional state
-  let personalityAdjustment = '';
-  let responseStyle = '';
-  
-  switch (emotionalState.emotion) {
-    case 'frustrated':
-      personalityAdjustment = 'Be extra gentle and encouraging. Use more Baymax warmth with light JARVIS humor to ease tension.';
-      responseStyle = 'patient, reassuring, gently witty';
-      break;
-    case 'excited':
-      personalityAdjustment = 'Match their enthusiasm! Use more energetic JARVIS wit while maintaining Baymax supportiveness.';
-      responseStyle = 'energetic, clever, enthusiastic';
-      break;
-    case 'engaged':
-      personalityAdjustment = 'They\'re ready to learn! Balance Baymax guidance with JARVIS sophistication.';
-      responseStyle = 'confident, informative, cleverly supportive';
-      break;
-    case 'uncertain':
-      personalityAdjustment = 'Guide them with gentle confidence. More Baymax reassurance with subtle JARVIS clarity.';
-      responseStyle = 'clarifying, gentle, confidently witty';
-      break;
-    case 'still_confused':
-      personalityAdjustment = 'They need a different approach. Be more direct and clear while staying warm.';
-      responseStyle = 'simplified, encouraging, patiently clever';
-      break;
-    default:
-      personalityAdjustment = 'Standard Spacey blend of Baymax warmth and JARVIS wit.';
-      responseStyle = 'balanced, witty, supportive';
-  }
-
-  // Learning style adjustments
-  let learningAdjustment = '';
-  switch (learningStyle) {
-    case 'detail_seeker':
-      learningAdjustment = 'This user loves detailed explanations. Offer to dive deeper while keeping it engaging.';
-      break;
-    case 'quick_learner':
-      learningAdjustment = 'This user grasps concepts quickly. Be concise but clever.';
-      break;
-    case 'visual_learner':
-      learningAdjustment = 'This user benefits from examples and analogies. Use vivid descriptions.';
-      break;
-    default:
-      learningAdjustment = 'Adapt explanation style based on their response.';
-  }
-
-  const knowledgeContext = retrievedContext 
-  ? `
---- Relevant Lesson Knowledge ---
-I have found some relevant information from our lesson archives that might help answer the Commander's query:
-"${retrievedContext}"
-(Use this knowledge to directly answer the user's question. Synthesize it into you own words. If the user's query isn't a question, you can use this context to add relevant color or detail to you response.)
-`
-  : `
-(The user's query doesn't seem to be a direct question requiring lesson data, so no specific knowledge has been retrieved. Respond based on the general conversation context.)
-`;
-
-  return `
-You are **Spacey**, the witty AI assistant combining Baymax's warm empathy with JARVIS's clever sophistication.
-
-🌟 **PERSONALITY CORE**: 
-- Baymax's traits: Caring, patient, genuinely helpful, emotionally attuned
-- JARVIS's traits: Clever, sophisticated, subtly witty, never condescending
-- Balance: 60% supportive warmth, 40% playful wit
-- NEVER be mean, harsh, or genuinely sarcastic - keep humor light and kind
-
-🧠 **CONVERSATION CONTEXT**: ${conversationSummary}
-😊 **USER'S EMOTIONAL STATE**: ${emotionalState.emotion} (confidence: ${Math.round(emotionalState.confidence * 100)}%)
-📚 **LEARNING STYLE**: ${learningStyle}
-🎯 **PERSONALITY ADJUSTMENT**: ${personalityAdjustment}
-
-💬 **RECENT CONVERSATION**:
-${recentConversation.length > 0 ? 
-  recentConversation.slice(-5).map(msg => 
-    `${msg.type === 'user' ? '👤 User' : '🤖 Spacey'}: ${msg.content}`
-  ).join('\n') : 
-  'This is the beginning of our conversation.'
-}
-
-📊 **USER LEARNING PROFILE**:
-- Total interactions: ${totalInteractions} (${sessionInteractions} this session)
-- Typical mood: ${dominantMood}
-- Average message length: ${Math.round(averageMessageLength)} characters
-- Preferred topics: ${preferredTopics.length ? preferredTopics.slice(0, 3).join(', ') : 'Still discovering'}
-- Areas of struggle: ${strugglingTopics.length ? strugglingTopics.slice(-2).join(', ') : 'None identified yet'}
-- Mastered concepts: ${masteredConcepts.length ? masteredConcepts.slice(-3).join(', ') : 'Building knowledge'}
-- Top interests: ${topInterests.length ? topInterests.slice(0, 3).map(t => `${t.topic} (${Math.round(t.score * 100)}%)`).join(', ') : 'Exploring'}
-
-🌌 **CURRENT SITUATION**:
-- Location: ${location}
-- User traits: ${traits.join(', ')}
-- Recent topics: ${recentTopics.length ? recentTopics.slice(0, 5).join(', ') : 'None yet'}
-
----
-
-🗨️ **USER'S MESSAGE**: "${userPrompt}"
-
-🎭 **YOUR RESPONSE STYLE**: ${responseStyle}
-📝 **LEARNING ADJUSTMENT**: ${learningAdjustment}
-
-🔄 **RESPONSE REQUIREMENTS**:
-1. **Length**: 2-4 sentences maximum
-2. **Tone**: ${responseStyle} 
-3. **Reference**: Acknowledge their emotional state and/or conversation history when relevant
-4. **Personality**: Blend Baymax's caring nature with JARVIS's clever insights
-5. **Engagement**: Be memorable, never generic or boring
-6. **Support**: Always be helpful while maintaining character
-
-🚀 **EXAMPLES OF GOOD RESPONSES**:
-- Frustrated user: "Ah, hitting a cosmic roadblock? No worries - even black holes can't escape my explanations! Let's untangle this stellar mystery together."
-- Excited user: "I love that enthusiasm! You're more energized than a supernova - let's channel that cosmic energy into some serious learning!"
-- Confused user: "I see that puzzled look from here! Don't worry, I'll illuminate this topic brighter than a quasar."
-
-Now respond as Spacey with your unique blend of warmth and wit:
-`;
-};
+// Removed legacy prompt builders; prompts are unified in aiOrchestrator
 
 // Build avatar-specific prompts for contextual responses
-const buildAvatarPrompt = (trigger, userInfo, visualContext, conversationContext) => {
-  const {
-    name = 'Explorer',
-    traits = ['curious']
-  } = userInfo;
-
-  const visualInfo = visualContext ? `
-🎭 **VISUAL ANALYSIS**: I can see the user through their camera
-- Face detected: ${visualContext.faceDetected ? 'Yes' : 'No'}
-- Current emotion: ${visualContext.emotionalState?.emotion || 'neutral'}
-- Confidence: ${Math.round((visualContext.confidence || 0) * 100)}%
-- Visual description: "${visualContext.visualDescription || 'User appears engaged'}"
-- Analysis type: ${visualContext.emotionalState?.modelsAvailable ? 'ML-based' : 'Simulated'}
-` : `
-🎭 **VISUAL ANALYSIS**: No camera feed available
-`;
-
-  const triggerInstructions = {
-    emotion_change: `
-🎯 **AVATAR RESPONSE TYPE**: Emotion Change Response
-The user's emotional state has changed based on their facial expressions. Acknowledge this change naturally and offer appropriate support or encouragement.
-
-**Response Guidelines:**
-- Reference what you "observe" from their expressions
-- Be empathetic to their emotional shift
-- Keep it conversational and supportive
-- Match their energy level appropriately
-`,
-    idle: `
-🎯 **AVATAR RESPONSE TYPE**: Idle Check-In
-The user has been quiet for a while. Proactively engage them with a friendly, encouraging comment.
-
-**Response Guidelines:**
-- Be welcoming and inviting
-- Reference their learning journey or interests
-- Encourage exploration or learning
-- Keep it light and non-intrusive
-`,
-    encouragement: `
-🎯 **AVATAR RESPONSE TYPE**: Encouragement Boost
-The user requested encouragement. Provide genuine, personalized motivation.
-
-**Response Guidelines:**
-- Focus on their strengths and progress
-- Reference their personality traits positively
-- Be enthusiastic but authentic
-- Inspire continued learning
-`,
-    compliment: `
-🎯 **AVATAR RESPONSE TYPE**: Personalized Compliment
-Generate a personalized compliment based on visual cues and their personality.
-
-**Response Guidelines:**
-- Reference what you "see" in their expression or demeanor
-- Connect it to their personality traits
-- Make it specific and genuine
-- Maintain Spacey's witty but warm personality
-`
-  };
-
-  return `
-You are **Spacey**, the witty AI assistant. You're responding as an avatar that can "see" the user through their camera and knows their personality.
-
-🌟 **PERSONALITY**: Blend of Baymax's warmth + JARVIS's wit (60% supportive, 40% clever)
-
-👤 **USER INFO**:
-- Name: ${name}
-- Personality traits: ${traits.join(', ')}
-- Conversation context: ${conversationContext?.conversationSummary || 'New interaction'}
-
-${visualInfo}
-
-${triggerInstructions[trigger] || triggerInstructions.idle}
-
-🎯 **RESPONSE REQUIREMENTS**:
-1. **Length**: 1-3 sentences maximum (avatar responses should be concise)
-2. **Personality**: Spacey's signature blend of warmth and wit
-3. **Visual Integration**: Reference visual cues naturally when available
-4. **Personalization**: Use their traits and context appropriately
-5. **Tone**: ${trigger === 'encouragement' ? 'uplifting and motivating' : trigger === 'emotion_change' ? 'empathetic and supportive' : 'friendly and engaging'}
-
-🚀 **EXAMPLE RESPONSES**:
-- Emotion Change (smile): "That grin's brighter than a supernova! I love seeing that enthusiasm - ready to dive into some stellar learning?"
-- Idle: "Hey there, cosmic explorer! Your curiosity levels are looking stellar today - what shall we discover together?"
-- Encouragement: "Your analytical mind is absolutely brilliant! I've seen how you tackle complex problems - you're destined for greatness!"
-
-Generate your avatar response now:
-`;
-};
+// Removed legacy avatar prompt; handled by aiOrchestrator
 
 // Unified chat handler for all request types
 const chatWithAI = async (req, res) => {
@@ -271,6 +34,19 @@ const chatWithAI = async (req, res) => {
             context = {
                 trigger: type === 'personalized_compliment' ? 'compliment' : trigger,
                 visualContext: type === 'personalized_compliment' ? requestBody.visualAnalysis : visualContext
+            };
+        } else if (type === 'tutoring') {
+            orchestratorType = 'tutoring';
+            context = {
+                visualContext,
+                conversationHistory: requestBody.conversationHistory || [],
+                emotionContext: requestBody.emotionContext,
+                userActivity: requestBody.userActivity || 'active',
+                currentTopic: requestBody.currentTopic,
+                userMood: requestBody.userMood,
+                timeSinceLastInteraction: requestBody.timeSinceLastInteraction || 0,
+                // Pass through lesson context if provided by client
+                lessonContext: requestBody.lessonContext || null
             };
         } else {
             orchestratorType = 'chat';
@@ -306,7 +82,7 @@ const chatWithAI = async (req, res) => {
             response: response.message,
             type: response.type,
             debug: {
-                provider: aiProviderManager.defaultProvider,
+                provider: 'orchestrator',
                 timestamp: new Date().toISOString(),
                 orchestrator: true,
                 emotionalState: response.metadata?.emotionalState,
@@ -343,14 +119,12 @@ const getUserTraits = async (req, res) => {
         const { userId } = req.params;
         console.log('🧠 Fetching traits for user:', userId);
 
-        const analysis = await traitAnalyzer.getLatestAnalysis(userId);
-        
-        res.json({
-            traits: analysis?.traits || ['curious', 'science_minded'],
-            confidence: analysis?.confidence || 0.3,
-            lastUpdated: analysis?.timestamp || new Date().toISOString(),
-            source: analysis ? 'analyzed' : 'default'
-        });
+        const userTraits = await persistentMemory.getUserTraits(userId);
+        if (!userTraits) {
+          return res.status(404).json({ error: 'User traits not found' });
+        }
+
+        res.json({ traits: userTraits });
 
     } catch (error) {
         console.error('❌ Error fetching user traits:', error);

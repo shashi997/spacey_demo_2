@@ -93,7 +93,8 @@ class AIOrchestrator {
       emotionalState,
       traitAnalysis,
       retrievedContext,
-      knowledgeGraph
+      knowledgeGraph,
+      latestSummary
     ] = await Promise.all([
       persistentMemory.summarizeContext(userId),
       persistentMemory.generateEnhancedContext(userId),
@@ -102,7 +103,8 @@ class AIOrchestrator {
         traitAnalyzer.analyzeTraits(prompt, context.lessonData?.title || 'general', user.traits || []) : 
         null,
       useLegacyRetrieval ? (prompt ? pineconeRetriever.getRelevantContext(prompt) : null) : null,
-      persistentMemory.getUserKnowledgeGraph(userId) // Fetch the knowledge graph
+      persistentMemory.getUserKnowledgeGraph(userId), // Fetch the knowledge graph
+      persistentMemory.loadLatestSummary(userId)
     ]);
 
     return {
@@ -116,6 +118,7 @@ class AIOrchestrator {
       traitAnalysis,
       retrievedContext,
       knowledgeGraph,
+      rollingSummary: latestSummary,
       
       // Computed metadata
       userProfile: {
@@ -153,12 +156,28 @@ class AIOrchestrator {
           filters.concepts = Object.keys(knowledgeGraph.nodes);
         }
 
+        // Build long-term facts string from persistent profile
+        let longTermFacts = '';
+        try {
+          const profile = await persistentMemory.getUserProfile(userProfile.id);
+          const facts = [];
+          if (profile?.userId) facts.push(`User ID: ${profile.userId}`);
+          if (profile?.learning?.preferredStyle && profile.learning.preferredStyle !== 'unknown') facts.push(`Prefers ${profile.learning.preferredStyle} explanations`);
+          if (Array.isArray(profile?.learning?.preferredTopics) && profile.learning.preferredTopics.length > 0) facts.push(`Interested in: ${profile.learning.preferredTopics.slice(0,5).join(', ')}`);
+          if (Array.isArray(profile?.learning?.strugglingTopics) && profile.learning.strugglingTopics.length > 0) facts.push(`Needs help with: ${profile.learning.strugglingTopics.slice(-5).join(', ')}`);
+          if (Array.isArray(profile?.learning?.masteredConcepts) && profile.learning.masteredConcepts.length > 0) facts.push(`Understands: ${profile.learning.masteredConcepts.slice(-5).join(', ')}`);
+          if (profile?.visual?.age) facts.push(`Approx. age: ${profile.visual.age}`);
+          if (profile?.visual?.gender) facts.push(`Gender: ${profile.visual.gender}`);
+          longTermFacts = facts.join('\n');
+        } catch (_) {}
+
         const ragResult = await chain.invoke({
           input: prompt,
           userProfile,
           conversationSummary,
           emotionalState,
-          filters
+          filters,
+          longTermFacts
         });
 
         const message = ragResult?.output || ragResult?.text || ragResult;
@@ -709,6 +728,21 @@ Provide an intelligent tutoring response:`;
         emotionalState: response.metadata?.emotionalState,
         provider: aiProviderManager.defaultProvider
       });
+
+      // Keep a rolling summary to prevent memory bloat
+      try {
+        const recent = await persistentMemory.getRecentInteractions(userId, 25);
+        if (recent.length >= 20) {
+          // Generate/update a short summary with the provider LLM
+          const transcript = recent.map(r => `USER: ${r.userMessage}\nAI: ${r.aiResponse}`).join('\n');
+          const summaryPrompt = `Summarize the following chat into 5-8 concise bullet points of durable facts and preferences about the user and ongoing tasks. Keep neutral tone.\n\n${transcript}`;
+          const summaryText = await aiProviderManager.generateResponse(summaryPrompt);
+          // Store in analytics dir as rolling summary for multi-session persistence
+          await persistentMemory.saveRollingSummary(userId, summaryText);
+        }
+      } catch (e) {
+        console.warn('Summary maintenance skipped:', e.message);
+      }
       
       console.log(`✅ Interaction stored for user ${userId}`);
     } catch (error) {

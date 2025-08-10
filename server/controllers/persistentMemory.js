@@ -301,6 +301,33 @@ class PersistentMemoryManager {
     }
   }
 
+  // Rolling conversation summary persisted across sessions
+  async saveRollingSummary(userId, summary) {
+    try {
+      const file = path.join(this.analyticsDir, `${userId}.summary.txt`);
+      const stamped = `# ${new Date().toISOString()}\n${summary}\n\n`;
+      await fs.appendFile(file, stamped, 'utf8');
+      // Also keep last snapshot for quick read
+      const latestFile = path.join(this.analyticsDir, `${userId}.summary.latest.txt`);
+      await fs.writeFile(latestFile, summary, 'utf8');
+    } catch (error) {
+      console.error('Error saving rolling summary:', error);
+    }
+  }
+
+  async loadLatestSummary(userId) {
+    try {
+      const latestFile = path.join(this.analyticsDir, `${userId}.summary.latest.txt`);
+      const data = await fs.readFile(latestFile, 'utf8');
+      return data;
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        console.error('Error loading latest summary:', error);
+      }
+      return '';
+    }
+  }
+
   // === ANALYTICS & PROFILE UPDATES ===
 
   async updateUserAnalytics(userId, interaction) {

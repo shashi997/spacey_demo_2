@@ -78,6 +78,9 @@ CONVERSATION SUMMARY:
 RETRIEVED CONTEXT:
 {context}
 
+USER FACTS (long-term memory):
+{userFacts}
+
 Guidelines:
 - Ground your answer in the retrieved context when relevant.
 - Keep 2–5 sentences unless the question needs more depth.
@@ -116,7 +119,7 @@ export async function createRagChatChain() {
 
   const systemPrompt = buildSystemPrompt();
 
-  async function invoke({ input, userProfile = {}, conversationSummary = '', emotionalState = {}, filters = {} }) {
+  async function invoke({ input, userProfile = {}, conversationSummary = '', emotionalState = {}, filters = {}, longTermFacts = '' }) {
     // 1) Condense question (simple heuristic using summary)
     const question = input;
 
@@ -154,14 +157,21 @@ export async function createRagChatChain() {
       emotion: emotionalState?.emotion || 'neutral',
       conversationSummary: conversationSummary || 'New user - no previous interactions.',
       context,
+      userFacts: longTermFacts || 'No long-term user facts available.',
     });
 
     const fullPrompt = `${prompt}\n\nUSER QUESTION: ${question}`;
-    const res = await genAI.models.generateContent({
-      model: geminiModel,
-      contents: fullPrompt,
-    });
-    const output = (res && res.text) ? res.text : '';
+    let output = '';
+    try {
+      const res = await genAI.models.generateContent({
+        model: geminiModel,
+        contents: fullPrompt,
+      });
+      output = (res && res.text) ? res.text : '';
+    } catch (e) {
+      console.warn('Gemini generation failed in RAG chain:', e.message);
+      output = '';
+    }
     return { output, citations, retrievedCount: retrievedDocs.length };
   }
 

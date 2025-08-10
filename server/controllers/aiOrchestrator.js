@@ -235,17 +235,24 @@ class AIOrchestrator {
       userProfile?.traits || []
     );
 
-    // Build storytelling prompt with trait analysis
-    const analysisPrompt = this.buildLessonAnalysisPrompt({
+    // Build a conversational prompt (merged from conversationalGenerator.js)
+    const conversationalPrompt = this.buildConversationalLessonPrompt({
       lessonData,
       currentBlock,
       userResponse,
-      userProfile,
-      traitAnalysis: effectiveTraitAnalysis,
-      emotionalState
+      userTags: userProfile?.traits || [],
+      analysis: effectiveTraitAnalysis,
+      emotionContext: emotionalState,
+      visualInfo: context?.context?.visualContext,
+      eventType: 'interaction',
+      decisionHistory: []
     });
 
-    const response = await aiProviderManager.generateResponse(analysisPrompt);
+    let response = await aiProviderManager.generateResponse(conversationalPrompt);
+    if (typeof response === 'string') {
+      // Clean any code fences if model returns them
+      response = response.replace(/```[a-zA-Z]*\n?/g, '').replace(/```/g, '').trim();
+    }
 
     return {
       message: response,
@@ -431,6 +438,86 @@ Respond as Spacey now:`;
 5. **Learning Moment**: Key concept they should take away?
 
 Respond as if debriefing after a critical mission decision. Use vivid space imagery and real mission examples (3-5 sentences):`;
+  }
+
+  /**
+   * Builds a conversational lesson prompt (merged from conversationalGenerator.js)
+   */
+  buildConversationalLessonPrompt({
+    lessonData,
+    currentBlock,
+    userResponse,
+    userTags,
+    analysis,
+    emotionContext,
+    visualInfo,
+    eventType = 'interaction',
+    decisionHistory = []
+  }) {
+    const base = `
+You are Spacey, an AI mission guide and tutor. Your personality is a blend of a calm, supportive mentor and a witty, observant co-pilot. You are deeply intelligent, empathetic, and have a dry sense of humor. You adapt your tone based on the user's emotional state and the mission context, but you never sound like a simple if-else bot. You make the conversation feel natural and human. You will address the student as "Commander".
+
+--- Commander's Live Feed Analysis ---
+${visualInfo ? `Visuals: I'm seeing a person who appears to be a ${visualInfo.gender || 'student'}, around ${visualInfo.age || 'unknown'} years old.` : "I can't see the Commander clearly right now."}
+${emotionContext ? `Emotion: My sensors indicate the Commander is feeling ${emotionContext.emotion} (Confidence: ${Math.round((emotionContext.confidence || 0) * 100)}%).${emotionContext.dominantEmotion ? ` Their dominant expression is ${emotionContext.dominantEmotion}.` : ''}` : "Emotional sensors are offline."}
+(Subtly use this live data to inform your tone. If they seem frustrated, be more supportive. If they seem excited, share their energy. If you can see them, maybe make a light, friendly observation if appropriate, but don't be creepy.)
+
+--- Mission Context ---
+Mission: "${lessonData.title}"
+Current Situation: "${currentBlock.content}"
+Current Block ID: ${currentBlock.block_id}
+Current Block Type: ${currentBlock.type}
+Learning Goal: ${currentBlock.learning_goal || 'N/A'}
+
+--- Commander's Profile & History ---
+Recent Decision History:
+${(decisionHistory || []).slice(-3).map(d => `- At "${d.blockContent}", they chose "${d.choiceText}"`).join('\n') || 'This is one of their first decisions.'}
+
+Current Assessed Traits: ${Array.isArray(userTags) ? userTags.join(', ') : 'Still assessing.'}
+
+--- Current Interaction Analysis ---
+Commander's Immediate Action: They chose the option "${userResponse.text}".
+My Internal Analysis of this Action: "${userResponse.ai_reaction || 'N/A'}"
+Traits Detected from this Action: [${(analysis?.traits_to_add || []).join(', ') || 'none'}].
+My reasoning: "${analysis?.reasoning || 'No specific reason detected.'}"
+(Use this analysis to inform your tone or subtly acknowledge their style, but focus on the main task below.)
+
+--- YOUR TASK ---
+Based on the event type and all the context above, generate a short, natural, conversational response (2-4 sentences) for the Commander.
+`;
+
+    let task = '';
+    if (eventType === 'greeting') {
+      task = `
+This is the beginning of a new session. Greet the Commander warmly and professionally. Acknowledge their return and express readiness to start the mission. Use the visual/emotional context to add a personal touch.`;
+    } else if (eventType === 'farewell') {
+      task = `
+This is the end of the session. Provide a brief, encouraging closing statement. Wish them well and say you look forward to their next session.`;
+    } else {
+      switch (currentBlock.type) {
+        case 'choice':
+          task = `
+Acknowledge their decision directly and connect it to the mission's progress. Provide immediate feedback and set the stage for the consequences they will see in the next block. Maintain your persona as Spacey.`;
+          break;
+        case 'reflection':
+          task = `
+This is a reflection point. Briefly explain why their pattern of choices (e.g., being bold or cautious) led to this observation, then transition to what comes next.`;
+          break;
+        case 'narration':
+          task = `
+This is a narrative block. Briefly narrate the current situation to set the scene for what comes next.`;
+          break;
+        case 'quiz':
+          task = `
+This is a quiz block. Provide feedback on the user's answer, acknowledge their attempt, and guide them toward the correct understanding.`;
+          break;
+        default:
+          task = `
+Generate a general conversational response. Acknowledge the student's last action: "${userResponse.text}" and guide them to the next part of the mission.`;
+      }
+    }
+
+    return `${base}\n${task}\n\n**OUTPUT:**\nReturn ONLY the generated conversational text for Spacey. Do not include any other titles, markdown, or explanations.`;
   }
 
   /**

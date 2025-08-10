@@ -39,8 +39,7 @@ const DashboardPage = () => {
 
   const [isAnimating, setIsAnimating] = useState(false);
 
-  // Enhanced Avatar States
-  const [enablePersonalization, setEnablePersonalization] = useState(true);
+  // Enhanced Avatar States (personalization always on)
   const [emotionData, setEmotionData] = useState(null);
   const { isAvatarSpeaking } = useConversationManager();
 
@@ -172,18 +171,7 @@ const DashboardPage = () => {
     );
   };
 
-  // Toggle personalization
-  const togglePersonalization = () => {
-    setEnablePersonalization((prev) => {
-      const newState = !prev;
-      setToastMessage(
-        newState ? "🧠 Personalization Enabled" : "🧠 Personalization Disabled"
-      );
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 2000);
-      return newState;
-    });
-  };
+  // Removed personalization toggle
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -205,11 +193,7 @@ const DashboardPage = () => {
         setShowToast(true);
         setTimeout(() => setShowToast(false), 2000);
       }
-      // Toggle personalization with Ctrl+P
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "p") {
-        event.preventDefault();
-        togglePersonalization();
-      }
+      // Removed personalization hotkey
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
@@ -227,63 +211,12 @@ const DashboardPage = () => {
         chatDebugData={chatDebugData}
       />
 
-      {/* Enhanced Controls Panel */}
-      {!isDebugOpen && (
-        <div className="fixed bottom-4 right-4 z-30 pointer-events-none">
-          <div className="bg-black/80 backdrop-blur-sm text-gray-400 px-3 py-2 rounded-lg text-xs font-mono border border-gray-600/50 shadow-lg">
-            <div className="flex flex-col gap-1">
-              <div>
-                <span className="text-purple-400">Ctrl</span> +{" "}
-                <span className="text-purple-400">i</span> = Debug
-              </div>
-              <div>
-                <span className="text-cyan-400">Ctrl</span> +{" "}
-                <span className="text-cyan-400">p</span> = Personalization
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Controls helper removed per request */}
 
-      {isDebugOpen && (
-        <div className="fixed bottom-4 right-4 z-30 pointer-events-none">
-          <div className="bg-black/80 backdrop-blur-sm text-gray-400 px-3 py-2 rounded-lg text-xs font-mono border border-purple-500/50 shadow-lg">
-            <div className="flex flex-col gap-1">
-              <div>
-                <span className="text-purple-400">Ctrl</span> +{" "}
-                <span className="text-purple-400">i</span> = Toggle
-              </div>
-              <div>
-                <span className="text-purple-400">Esc</span> = Close
-              </div>
-              <div>
-                <span className="text-cyan-400">Ctrl</span> +{" "}
-                <span className="text-cyan-400">p</span> = Personalization
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Debug helper removed per request */}
 
       {/* Status Indicators */}
       <div className="absolute top-22 left-[50px] z-30 space-y-2">
-        {/* Personalization Status */}
-        <button
-          onClick={togglePersonalization}
-          className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold transition-all pointer-events-auto shadow-lg backdrop-blur-sm ${
-            enablePersonalization
-              ? "bg-blue-700/90 text-white border border-blue-300"
-              : "bg-gray-700/90 text-gray-100 border border-gray-400"
-          }`}
-        >
-          <Brain className="w-3 h-3" />
-          <span>
-            {enablePersonalization
-              ? "Personalization ON"
-              : "Personalization OFF"}
-          </span>
-        </button>
-
         {/* Emotion Detection Status */}
         {emotionData?.faceDetected && emotionData?.emotionalState?.emotion && (
           <div className="flex items-center gap-2 px-3 py-1 bg-green-700/90 text-white text-xs font-semibold border border-green-300 rounded-full shadow-lg backdrop-blur-sm">
@@ -336,7 +269,6 @@ const DashboardPage = () => {
               webcamRef={webcamRef}
               userInfo={user}
               onAvatarResponse={handleAvatarResponse}
-              enablePersonalization={enablePersonalization}
               mode="dashboard"
               className="w-full h-full"
             />
@@ -347,7 +279,7 @@ const DashboardPage = () => {
             <CameraFeed
               ref={webcamRef}
               onEmotionDetected={handleEmotionDetected}
-              enableEmotionDetection={enablePersonalization}
+              enableEmotionDetection={true}
             />
           </div>
 
@@ -357,7 +289,7 @@ const DashboardPage = () => {
               onDebugDataUpdate={handleChatDebugUpdate}
               onAiSpeakingChange={setIsAnimating}
               emotionContext={emotionData}
-              enableEnhancedChat={enablePersonalization}
+              enableEnhancedChat={true}
             />
           </div>
         </div>

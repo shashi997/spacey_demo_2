@@ -802,7 +802,6 @@ Respond as if you're right there with the user during their mission.`;
                 <AIAvatar
                   webcamRef={webcamRef}
                   userInfo={currentUser}
-                  enablePersonalization={true}
                   mode="lesson"
                   lessonContext={lesson}
                   compact={false}

@@ -171,6 +171,8 @@ export const useCoordinatedSpeechSynthesis = (sourceId) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const audioRef = useRef(null);
   const audioUrlRef = useRef(null);
+  const utteranceRef = useRef(null);
+  const lastEngineRef = useRef('eleven'); // 'eleven' | 'web'
   // const isSpeakingRef = useRef(false);
   const { registerSpeechSource, unregisterSpeechSource, avatarSettings } = useSpeechCoordination();
 
@@ -227,47 +229,147 @@ export const useCoordinatedSpeechSynthesis = (sourceId) => {
       return;
     }
 
-    try {
-      setIsLoading(true);
+    // Decide engine via env toggle + credentials
+    const elevenLabsEnabled = (import.meta.env.VITE_ELEVEN_LABS_ENABLED ?? 'true') === 'true';
+    const hasElevenKey = Boolean(import.meta.env.VITE_ELEVEN_LABS_API_KEY);
+    const hasVoiceId = Boolean(import.meta.env.VITE_ELEVEN_LABS_VOICE_ID);
+    const useEleven = elevenLabsEnabled && hasElevenKey && hasVoiceId;
 
-      cleanupAudio();
+    if (useEleven) {
+      try {
+        lastEngineRef.current = 'eleven';
+        setIsLoading(true);
 
-      const audioUrl = await synthesizeSpeech(textToSpeak);
-      audioUrlRef.current = audioUrl;
+        cleanupAudio();
 
-      const audio = new Audio(audioUrl);
-      audioRef.current = audio;
+        const audioUrl = await synthesizeSpeech(textToSpeak);
+        audioUrlRef.current = audioUrl;
 
-      audio.oncanplaythrough = () => {
+        const audio = new Audio(audioUrl);
+        audioRef.current = audio;
+
+        audio.oncanplaythrough = () => {
+          setIsLoading(false);
+          setIsSpeaking(true);
+          registerSpeechSource(sourceId);
+          if (onStart) onStart();
+          audio.play().catch(console.error);
+        };
+
+        audio.onended = () => {
+          setIsSpeaking(false);
+          unregisterSpeechSource(sourceId);
+          cleanupAudio();
+          if (onEnd) onEnd();
+        };
+
+        audio.onerror = (error) => {
+          console.error('Audio playback error:', error);
+          setIsLoading(false);
+          setIsSpeaking(false);
+          unregisterSpeechSource(sourceId);
+          cleanupAudio();
+          if (onEnd) onEnd();
+        };
+      } catch (error) {
+        console.error('Speech synthesis error:', error);
         setIsLoading(false);
+        setIsSpeaking(false);
+        unregisterSpeechSource(sourceId);
+        if (onEnd) onEnd();
+      }
+      return;
+    }
+
+    // Web Speech API fallback
+    try {
+      lastEngineRef.current = 'web';
+      const synth = window.speechSynthesis;
+      if (!synth) {
+        console.warn('Web Speech API not supported.');
+        if (onEnd) onEnd();
+        return;
+      }
+
+      // Stop any existing speech
+      try { synth.cancel(); } catch (_) {}
+
+      const ensureVoicesLoaded = async () => {
+        let list = synth.getVoices();
+        if (list && list.length > 0) return list;
+        await new Promise((resolve) => {
+          const handler = () => {
+            synth.removeEventListener('voiceschanged', handler);
+            resolve();
+          };
+          synth.addEventListener('voiceschanged', handler);
+          // Safety timeout in case event doesn't fire
+          setTimeout(resolve, 500);
+        });
+        return synth.getVoices();
+      };
+
+      const utterance = new SpeechSynthesisUtterance(textToSpeak);
+      utteranceRef.current = utterance;
+
+      // Try to pick a reasonable English voice if available
+      const voices = await ensureVoicesLoaded();
+
+      const femaleNameHints = [
+        'female', 'zira', 'samantha', 'victoria', 'karen', 'serena', 'moira', 'tessa',
+        'aria', 'jenny', 'joanna', 'emma', 'ivy', 'kimberly', 'kendra', 'salli', 'olivia', 'natalie'
+      ];
+
+      const isLikelyFemale = (v) => {
+        const n = (v.name || '').toLowerCase();
+        return femaleNameHints.some(h => n.includes(h));
+      };
+
+      const englishVoices = voices.filter(v => (v.lang || '').toLowerCase().startsWith('en'));
+      // Hard preference order
+      const preferred =
+        englishVoices.find(v => v.name === 'Google UK English Female') ||
+        englishVoices.find(v => /Microsoft Zira/i.test(v.name)) ||
+        englishVoices.find(isLikelyFemale) ||
+        englishVoices.find(v => v.localService && isLikelyFemale(v)) ||
+        englishVoices.find(v => v.localService) ||
+        englishVoices.find(v => v.lang?.toLowerCase() === 'en-us') ||
+        englishVoices[0] ||
+        null;
+
+      const selectedVoice = preferred;
+      if (selectedVoice) utterance.voice = selectedVoice;
+
+      // Slightly higher pitch to align with typical female voice timbre
+      utterance.pitch = 1.05;
+      utterance.rate = 1;
+      utterance.volume = 1;
+
+      utterance.onstart = () => {
         setIsSpeaking(true);
         registerSpeechSource(sourceId);
         if (onStart) onStart();
-        audio.play().catch(console.error);
       };
-
-      audio.onended = () => {
+      utterance.onend = () => {
         setIsSpeaking(false);
         unregisterSpeechSource(sourceId);
-        cleanupAudio();
+        utteranceRef.current = null;
+        if (onEnd) onEnd();
+      };
+      utterance.onerror = (event) => {
+        console.error('SpeechSynthesis Error', event);
+        setIsSpeaking(false);
+        unregisterSpeechSource(sourceId);
+        utteranceRef.current = null;
         if (onEnd) onEnd();
       };
 
-      audio.onerror = (error) => {
-        console.error('Audio playback error:', error);
-        setIsLoading(false);
-        setIsSpeaking(false);
-        unregisterSpeechSource(sourceId);
-        cleanupAudio();
-        if (onEnd) onEnd();
-      };
-    } catch (error) {
-      console.error('Speech synthesis error:', error);
-      setIsLoading(false);
+      synth.speak(utterance);
+    } catch (err) {
+      console.error('Web TTS failed:', err);
       setIsSpeaking(false);
       unregisterSpeechSource(sourceId);
       if (onEnd) onEnd();
-      // Removed browser speech fallback to prevent multiple voices
     }
     // const synth = window.speechSynthesis;
 
@@ -336,7 +438,13 @@ export const useCoordinatedSpeechSynthesis = (sourceId) => {
 
   const cancel = useCallback(() => {
     // if (!isSupported) return;
-    // window.speechSynthesis.cancel();
+    try {
+      if (lastEngineRef.current === 'web') {
+        const synth = window.speechSynthesis;
+        if (synth) synth.cancel();
+        utteranceRef.current = null;
+      }
+    } catch (_) {}
     // isSpeakingRef.current = false;
     setIsLoading(false);
     setIsSpeaking(false);

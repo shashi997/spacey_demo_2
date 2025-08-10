@@ -1,6 +1,7 @@
 import { encode } from '@msgpack/msgpack';
 const ELEVEN_LABS_API_KEY = import.meta.env.VITE_ELEVEN_LABS_API_KEY;
 const VOICE_ID = import.meta.env.VITE_ELEVEN_LABS_VOICE_ID;
+const ELEVEN_LABS_ENABLED = (import.meta.env.VITE_ELEVEN_LABS_ENABLED ?? 'true') === 'true';
 const CACHE_DURATION = 1000 * 60 * 60; // 1 hour cache
 
 // Audio cache using IndexedDB
@@ -19,6 +20,9 @@ export const synthesizeSpeech = async (text, options = {}) => {
     }
 
     try {
+        if (!ELEVEN_LABS_ENABLED) {
+            throw new Error('ElevenLabs disabled by env toggle');
+        }
         const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`, {
             method: 'POST',
             headers: {

@@ -81,6 +81,9 @@ RETRIEVED CONTEXT:
 USER FACTS (long-term memory):
 {userFacts}
 
+SEMANTIC CONVERSATION MEMORY:
+{semanticMemory}
+
 Guidelines:
 - Ground your answer in the retrieved context when relevant.
 - Keep 2–5 sentences unless the question needs more depth.
@@ -119,7 +122,7 @@ export async function createRagChatChain() {
 
   const systemPrompt = buildSystemPrompt();
 
-  async function invoke({ input, userProfile = {}, conversationSummary = '', emotionalState = {}, filters = {}, longTermFacts = '' }) {
+  async function invoke({ input, userProfile = {}, conversationSummary = '', emotionalState = {}, filters = {}, longTermFacts = '', semanticMemory = '' }) {
     // 1) Condense question (simple heuristic using summary)
     const question = input;
 
@@ -158,6 +161,7 @@ export async function createRagChatChain() {
       conversationSummary: conversationSummary || 'New user - no previous interactions.',
       context,
       userFacts: longTermFacts || 'No long-term user facts available.',
+      semanticMemory
     });
 
     const fullPrompt = `${prompt}\n\nUSER QUESTION: ${question}`;

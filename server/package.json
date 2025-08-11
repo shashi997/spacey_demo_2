@@ -10,7 +10,8 @@
     "migrate:verify": "node scripts/migrate.js --verify-only",
     "test:memory": "node scripts/testPersistentMemory.js",
     "build:concept-map": "node scripts/buildConceptMap.js",
-    "rag:ingest": "node --experimental-modules scripts/ingestLessonsRAG.mjs"
+    "rag:ingest": "node --experimental-modules scripts/ingestLessonsRAG.mjs",
+    "mem:backfill": "node scripts/backfillConversationMemory.js"
   },
   "keywords": [],
   "author": "",

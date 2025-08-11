@@ -3,6 +3,7 @@ const { persistentMemory } = require('./persistentMemory');
 const { traitAnalyzer } = require('./traitAnalyzer');
 const { knowledgeGraphManager } = require('./knowledgeGraphManager');
 const pineconeRetriever = require('./pineconeRetriever');
+const { conversationMemory } = require('./conversationMemory');
 
 // Optional RAG chain (LangChain). Loaded lazily to avoid hard dependency at boot.
 let ragChatChain = null;
@@ -94,7 +95,8 @@ class AIOrchestrator {
       traitAnalysis,
       retrievedContext,
       knowledgeGraph,
-      latestSummary
+      latestSummary,
+      semanticMemory
     ] = await Promise.all([
       persistentMemory.summarizeContext(userId),
       persistentMemory.generateEnhancedContext(userId),
@@ -104,7 +106,18 @@ class AIOrchestrator {
         null,
       useLegacyRetrieval ? (prompt ? pineconeRetriever.getRelevantContext(prompt) : null) : null,
       persistentMemory.getUserKnowledgeGraph(userId), // Fetch the knowledge graph
-      persistentMemory.loadLatestSummary(userId)
+      persistentMemory.loadLatestSummary(userId),
+      (async () => {
+        if (!prompt) return '';
+        const main = await conversationMemory.searchRelevant(userId, prompt, Number(process.env.CONVERSATIONS_TOP_K || 4));
+        // Try identity recall as a second pass if name/email asked
+        let identity = '';
+        const identityHints = /(my name|what.*my name|who am i|my email)/i.test(prompt || '')
+          ? await conversationMemory.searchRelevant(userId, 'user_name OR user_email', 2)
+          : '';
+        identity = identityHints || '';
+        return [main, identity].filter(Boolean).join('\n\n—\n\n');
+      })()
     ]);
 
     return {
@@ -119,6 +132,7 @@ class AIOrchestrator {
       retrievedContext,
       knowledgeGraph,
       rollingSummary: latestSummary,
+      semanticMemory,
       
       // Computed metadata
       userProfile: {
@@ -140,7 +154,7 @@ class AIOrchestrator {
    * Handles general chat interactions
    */
   async handleChatInteraction(context) {
-    const { prompt, userProfile, conversationSummary, emotionalState, retrievedContext, knowledgeGraph } = context;
+    const { prompt, userProfile, conversationSummary, emotionalState, retrievedContext, knowledgeGraph, semanticMemory } = context;
 
     // Try RAG path first if enabled
     const chain = await getRagChatChain();
@@ -177,7 +191,8 @@ class AIOrchestrator {
           conversationSummary,
           emotionalState,
           filters,
-          longTermFacts
+          longTermFacts,
+          semanticMemory
         });
 
         const message = ragResult?.output || ragResult?.text || ragResult;
@@ -223,7 +238,8 @@ class AIOrchestrator {
       emotionalState,
       retrievedContext,
       knowledgeGraph,
-      context: context.context
+      context: context.context,
+      semanticMemory
     });
 
     const response = await aiProviderManager.generateResponse(chatPrompt);
@@ -352,7 +368,7 @@ class AIOrchestrator {
   /**
    * Builds chat-specific prompts
    */
-  buildChatPrompt({ userPrompt, userProfile, conversationSummary, emotionalState, retrievedContext, knowledgeGraph, context: rawContext }) {
+  buildChatPrompt({ userPrompt, userProfile, conversationSummary, emotionalState, retrievedContext, knowledgeGraph, context: rawContext, semanticMemory }) {
     const knowledgeGaps = knowledgeGraphManager.getKnowledgeGaps(knowledgeGraph);
 
     // Pull additional context from the request (conversation manager data)
@@ -418,6 +434,7 @@ ${recentConversation || 'This is the beginning of our conversation.'}
 - Struggling Concepts: ${knowledgeGaps.struggling.join(', ') || 'None yet'}
 
 ${retrievedContext ? `📚 **RELEVANT KNOWLEDGE**: ${retrievedContext}` : ''}
+${semanticMemory ? `\n📜 **SEMANTIC MEMORY SNIPPETS**:\n${semanticMemory}` : ''}
 
 🗨️ **USER'S MESSAGE**: "${userPrompt}"
 
@@ -728,6 +745,25 @@ Provide an intelligent tutoring response:`;
         emotionalState: response.metadata?.emotionalState,
         provider: aiProviderManager.defaultProvider
       });
+
+      // Upsert to semantic conversation memory
+      try {
+        const sessionId = await persistentMemory.getCurrentSessionId(userId);
+        await conversationMemory.upsertTurn(userId, request.prompt || '', response.message || '', { sessionId });
+        // Detect and store durable facts (names, emails) for strong recall
+        const combined = `${request.prompt || ''} \n ${response.message || ''}`.toLowerCase();
+        const nameMatch = /my name is\s+([a-z][a-z\s'-]{1,40})[\.!?]?$/.exec(combined) || /i am\s+([a-z][a-z\s'-]{1,40})[\.!?]?$/.exec(combined);
+        if (nameMatch && nameMatch[1]) {
+          const name = nameMatch[1].trim();
+          await conversationMemory.upsertFact(userId, `user_name=${name}`, { factType: 'identity', key: 'name' });
+        }
+        const emailMatch = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/.exec(combined);
+        if (emailMatch) {
+          await conversationMemory.upsertFact(userId, `user_email=${emailMatch[0]}`, { factType: 'identity', key: 'email' });
+        }
+      } catch (e) {
+        console.warn('Conversation memory upsert skipped:', e.message);
+      }
 
       // Keep a rolling summary to prevent memory bloat
       try {

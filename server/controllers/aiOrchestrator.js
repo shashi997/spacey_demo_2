@@ -4,7 +4,7 @@ const { traitAnalyzer } = require('./traitAnalyzer');
 const { knowledgeGraphManager } = require('./knowledgeGraphManager');
 const pineconeRetriever = require('./pineconeRetriever');
 const { conversationMemory } = require('./conversationMemory');
-const { extractAndStoreFacts, extractHybrid } = require('./factExtractor');
+const { extractAndStoreFacts, extractHybrid, personalizationController } = require('./personalizationController');
 const userProfileMemory = require('./userProfileMemory');
 
 // Optional RAG chain (LangChain). Loaded lazily to avoid hard dependency at boot.
@@ -189,6 +189,7 @@ class AIOrchestrator {
    */
   async handleChatInteraction(context) {
     const { prompt, userProfile, conversationSummary, emotionalState, retrievedContext, knowledgeGraph, semanticMemory } = context;
+    const hasHistory = Array.isArray(context?.context?.conversationHistory) && context.context.conversationHistory.length > 0;
 
     // Try RAG path first if enabled
     const chain = await getRagChatChain();
@@ -236,7 +237,8 @@ class AIOrchestrator {
           semanticMemory
         });
 
-        const message = ragResult?.output || ragResult?.text || ragResult;
+        let message = ragResult?.output || ragResult?.text || ragResult;
+        message = this.stripGreeting(message, hasHistory);
         const citations = ragResult?.citations || [];
 
         await this.updateKnowledgeFromInteraction(userProfile.id, prompt, message);
@@ -253,7 +255,8 @@ class AIOrchestrator {
             knowledgeGraph,
             context: context.context
           });
-          const fallbackMessage = await aiProviderManager.generateResponse(fallbackPrompt);
+          const fallbackMessageRaw = await aiProviderManager.generateResponse(fallbackPrompt);
+          const fallbackMessage = this.stripGreeting(fallbackMessageRaw, hasHistory);
           return {
             message: fallbackMessage,
             type: 'chat_response',
@@ -284,7 +287,8 @@ class AIOrchestrator {
       identity: context.identity || {}
     });
 
-    const response = await aiProviderManager.generateResponse(chatPrompt);
+    const responseRaw = await aiProviderManager.generateResponse(chatPrompt);
+    const response = this.stripGreeting(responseRaw, hasHistory);
     await this.updateKnowledgeFromInteraction(userProfile.id, prompt, response);
     return {
       message: response,
@@ -420,6 +424,7 @@ class AIOrchestrator {
     const currentTopic = rawContext?.currentTopic || 'general';
     const userMood = rawContext?.userMood || emotionalState?.emotion || 'neutral';
     const timeSinceLastInteraction = rawContext?.timeSinceLastInteraction ?? 0;
+    const hasHistory = Array.isArray(convo) && convo.length > 0;
 
     // Dynamic personality adjustments based on emotion (from SpaceyController best bits)
     let responseStyle = 'balanced, witty, supportive';
@@ -481,6 +486,12 @@ ${recentConversation || 'This is the beginning of our conversation.'}
 😊 **USER STATE**: mood=${userMood}, activity=${userActivity}, last_interaction=${timeSinceLastInteraction}s ago
 👤 **USER PROFILE**: ${userProfile.name}, traits: [${userProfile.traits.join(', ')}]
 ${identityLines.length ? `🪪 **IDENTITY**: ${identityLines.join(' | ')}` : ''}
+
+🔄 **CONVERSATION FLOW**:
+- ${hasHistory ? 'Do NOT start with a greeting or the user\'s name; continue mid-conversation naturally.' : 'You may start with a brief, natural opener once.'}
+- Avoid repetitive openers (e.g., "Greetings", "Hello", "Hi", "Hey").
+- Use the user\'s name sparingly; only when it adds value.
+- Vary phrasing across turns; avoid template-like starts.
 🧭 **TOPIC**: ${currentTopic}
 
 📈 **KNOWLEDGE GRAPH SUMMARY**:
@@ -498,8 +509,20 @@ ${semanticMemory ? `\n📜 **SEMANTIC MEMORY SNIPPETS**:\n${semanticMemory}` : '
 3. Learning Adjustment: ${learningAdjustment}
 4. Reference context or emotion naturally when helpful
 5. Be memorable, helpful, and never condescending
+6. ${hasHistory ? 'Do NOT include greetings or the user\'s name at the start.' : 'If greeting, keep it short and natural.'}
 
 Respond as Spacey now:`;
+  }
+
+  stripGreeting(text, hasHistory) {
+    try {
+      if (!text) return text;
+      let out = String(text).trim();
+      if (!hasHistory) return out;
+      // Remove common greeting openers once, case-insensitive
+      out = out.replace(/^\s*(?:\*\*\s*)?(?:Greetings|Hello|Hi|Hey)[,!\.]\s*(?:[A-Z][a-zA-Z]+)?[,!\.]*\s*/i, '');
+      return out.trim();
+    } catch { return text; }
   }
 
   /**
@@ -800,52 +823,20 @@ Provide an intelligent tutoring response:`;
         provider: aiProviderManager.defaultProvider
       });
 
-      // Upsert to semantic conversation memory
+      // Upsert to semantic conversation memory and ingest personalization
       try {
         const sessionId = await persistentMemory.getCurrentSessionId(userId);
         await conversationMemory.upsertTurn(userId, request.prompt || '', response.message || '', { sessionId });
-        // Extract structured facts and ephemeral state
-        const currentProfile = await persistentMemory.getUserProfile(userId);
-        const { facts, ephemerals } = await extractHybrid(request.prompt || '', response.message || '', currentProfile, {
-          knownTopics: (request?.context?.currentTopic ? [String(request.context.currentTopic)] : [])
-        });
-        for (const f of facts) {
-          if (f.type === 'identity') {
-            // Persist to vector db profile space
-            await userProfileMemory.upsertIdentity(userId, { [f.key]: f.value });
-            // Update on-disk persistent identity
-            await persistentMemory.updateUserIdentity(userId, { [f.key]: f.value });
-            // Maintain backwards-compatible identity facts in conversation memory for recall
-            if (f.key === 'name') {
-              await conversationMemory.upsertFact(userId, `user_name=${f.value}`, { factType: 'identity', key: 'name', ttlDays: f.ttlDays });
-            }
-            if (f.key === 'email') {
-              await conversationMemory.upsertFact(userId, `user_email=${f.value}`, { factType: 'identity', key: 'email', ttlDays: f.ttlDays });
-            }
-          } else if (f.type === 'preference' && f.key === 'learning_style') {
-            // Update persistent profile
-            const profile = await persistentMemory.getUserProfile(userId);
-            profile.learning.preferredStyle = f.value;
-            await persistentMemory.saveUserProfile(userId, profile);
-          } else if (f.type === 'preference' && f.key === 'preferred_topic') {
-            const profile = await persistentMemory.getUserProfile(userId);
-            if (!profile.learning.preferredTopics.includes(f.value)) profile.learning.preferredTopics.push(f.value);
-            await persistentMemory.saveUserProfile(userId, profile);
-          } else if (f.type === 'knowledge' && f.key === 'struggling_topic') {
-            const profile = await persistentMemory.getUserProfile(userId);
-            if (!profile.learning.strugglingTopics.includes(f.value)) profile.learning.strugglingTopics.push(f.value);
-            await persistentMemory.saveUserProfile(userId, profile);
-            await persistentMemory.updateUserKnowledgeGraph(userId, f.value, -0.1, 'user reported struggle');
+        await personalizationController.ingestChatTurn(
+          userId,
+          request.prompt || '',
+          response.message || '',
+          {
+            visualContext: request?.context?.visualContext || null,
+            lessonContext: request?.context?.lessonContext || null,
+            currentTopic: request?.context?.currentTopic || null
           }
-        }
-        // Store ephemeral state (session cache via profile.sessions; simple approach)
-        if (ephemerals && ephemerals.length > 0) {
-          const profile = await persistentMemory.getUserProfile(userId);
-          profile.sessions.currentSubject = ephemerals.find(e => e.key === 'current_subject')?.value || profile.sessions.currentSubject;
-          profile.sessions.currentTask = ephemerals.find(e => e.key === 'current_task')?.value || profile.sessions.currentTask;
-          profile.sessions._ephemeralExpiry = Date.now() + Math.max(...ephemerals.map(e => e.ttlSeconds || 0), 0) * 1000;
-          await persistentMemory.saveUserProfile(userId, profile);
-        }
+        );
       } catch (e) {
         console.warn('Conversation memory upsert skipped:', e.message);
       }

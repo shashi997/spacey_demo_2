@@ -4,6 +4,8 @@ const { traitAnalyzer } = require('./traitAnalyzer');
 const { knowledgeGraphManager } = require('./knowledgeGraphManager');
 const pineconeRetriever = require('./pineconeRetriever');
 const { conversationMemory } = require('./conversationMemory');
+const { extractAndStoreFacts, extractHybrid } = require('./factExtractor');
+const userProfileMemory = require('./userProfileMemory');
 
 // Optional RAG chain (LangChain). Loaded lazily to avoid hard dependency at boot.
 let ragChatChain = null;
@@ -116,9 +118,40 @@ class AIOrchestrator {
           ? await conversationMemory.searchRelevant(userId, 'user_name OR user_email', 2)
           : '';
         identity = identityHints || '';
-        return [main, identity].filter(Boolean).join('\n\n—\n\n');
+        // Include brief Context Header from profile & sessions
+        let header = '';
+        try {
+          const profile = await persistentMemory.getUserProfile(userId);
+          const now = Date.now();
+          const notExpired = !profile.sessions._ephemeralExpiry || profile.sessions._ephemeralExpiry > now;
+          const currentSubject = notExpired ? profile.sessions.currentSubject : null;
+          const currentTask = notExpired ? profile.sessions.currentTask : null;
+          const headerLines = [];
+          if (profile?.userId) headerLines.push(`user_id=${profile.userId}`);
+          // Prefer identity facts
+          const nameFact = await conversationMemory.searchRelevant(userId, 'user_name=', 1, { type: 'fact', factType: 'identity', key: 'name' });
+          if (nameFact) headerLines.push(`name_hint=${nameFact.split('=')[1] || ''}`);
+          if (currentSubject) headerLines.push(`current_subject=${currentSubject}`);
+          if (currentTask) headerLines.push(`current_task=${currentTask}`);
+          const prefs = (profile.learning?.preferredTopics || []).slice(0, 3);
+          if (prefs.length) headerLines.push(`preferred_topics=${prefs.join(',')}`);
+          const struggling = (profile.learning?.strugglingTopics || []).slice(-3);
+          if (struggling.length) headerLines.push(`struggling_topics=${struggling.join(',')}`);
+          header = headerLines.join('\n');
+        } catch {}
+        return [header, main, identity].filter(Boolean).join('\n\n—\n\n');
       })()
     ]);
+
+    // Pull durable identity to use as active context (name, email, etc.)
+    let identity = {};
+    try {
+      identity = await userProfileMemory.fetchIdentity(userId);
+      if (!identity?.name) {
+        const prof = await persistentMemory.getUserProfile(userId);
+        identity = { ...identity, ...(prof.identity || {}) };
+      }
+    } catch (_) {}
 
     return {
       // Original request data
@@ -137,12 +170,13 @@ class AIOrchestrator {
       // Computed metadata
       userProfile: {
         id: userId,
-        name: user?.name || 'Explorer',
+        name: identity?.name || user?.name || 'Explorer',
         traits: user?.traits || [],
         learningStyle: enhancedContext.learningStyle,
         strugglingTopics: enhancedContext.strugglingTopics || [],
         masteredConcepts: enhancedContext.masteredConcepts || []
       },
+      identity,
       
       // Interaction metadata
       timestamp: new Date().toISOString(),
@@ -170,7 +204,7 @@ class AIOrchestrator {
           filters.concepts = Object.keys(knowledgeGraph.nodes);
         }
 
-        // Build long-term facts string from persistent profile
+        // Build long-term facts string from persistent profile + durable identity
         let longTermFacts = '';
         try {
           const profile = await persistentMemory.getUserProfile(userProfile.id);
@@ -182,6 +216,13 @@ class AIOrchestrator {
           if (Array.isArray(profile?.learning?.masteredConcepts) && profile.learning.masteredConcepts.length > 0) facts.push(`Understands: ${profile.learning.masteredConcepts.slice(-5).join(', ')}`);
           if (profile?.visual?.age) facts.push(`Approx. age: ${profile.visual.age}`);
           if (profile?.visual?.gender) facts.push(`Gender: ${profile.visual.gender}`);
+          const ident = context.identity || profile.identity || {};
+          if (ident?.name) facts.push(`Name: ${ident.name}`);
+          if (ident?.email) facts.push(`Email: ${ident.email}`);
+          if (ident?.nationality) facts.push(`Nationality: ${ident.nationality}`);
+          if (ident?.age) facts.push(`Age: ${ident.age}`);
+          if (ident?.timezone) facts.push(`Timezone: ${ident.timezone}`);
+          if (Array.isArray(ident?.languages) && ident.languages.length) facts.push(`Languages: ${ident.languages.join(', ')}`);
           longTermFacts = facts.join('\n');
         } catch (_) {}
 
@@ -239,7 +280,8 @@ class AIOrchestrator {
       retrievedContext,
       knowledgeGraph,
       context: context.context,
-      semanticMemory
+      semanticMemory,
+      identity: context.identity || {}
     });
 
     const response = await aiProviderManager.generateResponse(chatPrompt);
@@ -368,7 +410,7 @@ class AIOrchestrator {
   /**
    * Builds chat-specific prompts
    */
-  buildChatPrompt({ userPrompt, userProfile, conversationSummary, emotionalState, retrievedContext, knowledgeGraph, context: rawContext, semanticMemory }) {
+  buildChatPrompt({ userPrompt, userProfile, conversationSummary, emotionalState, retrievedContext, knowledgeGraph, context: rawContext, semanticMemory, identity = {} }) {
     const knowledgeGaps = knowledgeGraphManager.getKnowledgeGaps(knowledgeGraph);
 
     // Pull additional context from the request (conversation manager data)
@@ -415,6 +457,17 @@ class AIOrchestrator {
         break;
     }
 
+    const identityLines = [];
+    if (identity && (identity.name || identity.email || identity.nationality || identity.age || (identity.languages && identity.languages.length))) {
+      if (identity.name) identityLines.push(`Name: ${identity.name}`);
+      if (identity.email) identityLines.push(`Email: ${identity.email}`);
+      if (identity.age) identityLines.push(`Age: ${identity.age}`);
+      if (identity.nationality) identityLines.push(`Nationality: ${identity.nationality}`);
+      if (identity.timezone) identityLines.push(`Timezone: ${identity.timezone}`);
+      const langs = Array.isArray(identity.languages) ? identity.languages.join(', ') : '';
+      if (langs) identityLines.push(`Languages: ${langs}`);
+    }
+
     return `You are **Spacey**, the witty AI assistant combining Baymax's warm empathy with JARVIS's clever sophistication.
 
 🌟 **PERSONALITY CORE**:
@@ -427,6 +480,7 @@ class AIOrchestrator {
 ${recentConversation || 'This is the beginning of our conversation.'}
 😊 **USER STATE**: mood=${userMood}, activity=${userActivity}, last_interaction=${timeSinceLastInteraction}s ago
 👤 **USER PROFILE**: ${userProfile.name}, traits: [${userProfile.traits.join(', ')}]
+${identityLines.length ? `🪪 **IDENTITY**: ${identityLines.join(' | ')}` : ''}
 🧭 **TOPIC**: ${currentTopic}
 
 📈 **KNOWLEDGE GRAPH SUMMARY**:
@@ -750,16 +804,47 @@ Provide an intelligent tutoring response:`;
       try {
         const sessionId = await persistentMemory.getCurrentSessionId(userId);
         await conversationMemory.upsertTurn(userId, request.prompt || '', response.message || '', { sessionId });
-        // Detect and store durable facts (names, emails) for strong recall
-        const combined = `${request.prompt || ''} \n ${response.message || ''}`.toLowerCase();
-        const nameMatch = /my name is\s+([a-z][a-z\s'-]{1,40})[\.!?]?$/.exec(combined) || /i am\s+([a-z][a-z\s'-]{1,40})[\.!?]?$/.exec(combined);
-        if (nameMatch && nameMatch[1]) {
-          const name = nameMatch[1].trim();
-          await conversationMemory.upsertFact(userId, `user_name=${name}`, { factType: 'identity', key: 'name' });
+        // Extract structured facts and ephemeral state
+        const currentProfile = await persistentMemory.getUserProfile(userId);
+        const { facts, ephemerals } = await extractHybrid(request.prompt || '', response.message || '', currentProfile, {
+          knownTopics: (request?.context?.currentTopic ? [String(request.context.currentTopic)] : [])
+        });
+        for (const f of facts) {
+          if (f.type === 'identity') {
+            // Persist to vector db profile space
+            await userProfileMemory.upsertIdentity(userId, { [f.key]: f.value });
+            // Update on-disk persistent identity
+            await persistentMemory.updateUserIdentity(userId, { [f.key]: f.value });
+            // Maintain backwards-compatible identity facts in conversation memory for recall
+            if (f.key === 'name') {
+              await conversationMemory.upsertFact(userId, `user_name=${f.value}`, { factType: 'identity', key: 'name', ttlDays: f.ttlDays });
+            }
+            if (f.key === 'email') {
+              await conversationMemory.upsertFact(userId, `user_email=${f.value}`, { factType: 'identity', key: 'email', ttlDays: f.ttlDays });
+            }
+          } else if (f.type === 'preference' && f.key === 'learning_style') {
+            // Update persistent profile
+            const profile = await persistentMemory.getUserProfile(userId);
+            profile.learning.preferredStyle = f.value;
+            await persistentMemory.saveUserProfile(userId, profile);
+          } else if (f.type === 'preference' && f.key === 'preferred_topic') {
+            const profile = await persistentMemory.getUserProfile(userId);
+            if (!profile.learning.preferredTopics.includes(f.value)) profile.learning.preferredTopics.push(f.value);
+            await persistentMemory.saveUserProfile(userId, profile);
+          } else if (f.type === 'knowledge' && f.key === 'struggling_topic') {
+            const profile = await persistentMemory.getUserProfile(userId);
+            if (!profile.learning.strugglingTopics.includes(f.value)) profile.learning.strugglingTopics.push(f.value);
+            await persistentMemory.saveUserProfile(userId, profile);
+            await persistentMemory.updateUserKnowledgeGraph(userId, f.value, -0.1, 'user reported struggle');
+          }
         }
-        const emailMatch = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/.exec(combined);
-        if (emailMatch) {
-          await conversationMemory.upsertFact(userId, `user_email=${emailMatch[0]}`, { factType: 'identity', key: 'email' });
+        // Store ephemeral state (session cache via profile.sessions; simple approach)
+        if (ephemerals && ephemerals.length > 0) {
+          const profile = await persistentMemory.getUserProfile(userId);
+          profile.sessions.currentSubject = ephemerals.find(e => e.key === 'current_subject')?.value || profile.sessions.currentSubject;
+          profile.sessions.currentTask = ephemerals.find(e => e.key === 'current_task')?.value || profile.sessions.currentTask;
+          profile.sessions._ephemeralExpiry = Date.now() + Math.max(...ephemerals.map(e => e.ttlSeconds || 0), 0) * 1000;
+          await persistentMemory.saveUserProfile(userId, profile);
         }
       } catch (e) {
         console.warn('Conversation memory upsert skipped:', e.message);

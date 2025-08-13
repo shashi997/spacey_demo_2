@@ -21,7 +21,41 @@ const chatWithAI = async (req, res) => {
         console.log('🎯 Unified chat request received via orchestrator:', req.body);
         
         const { prompt, user, type = 'unified_chat', visualContext, trigger, ...requestBody } = req.body;
-        const userId = user?.id || 'anonymous';
+        // Canonicalize user id to avoid fragmentation (anonymous vs real)
+        const parseCookies = (cookieHeader = '') => {
+            try {
+                const entries = cookieHeader.split(';').map(c => c.trim()).filter(Boolean).map(kv => {
+                    const idx = kv.indexOf('=');
+                    if (idx === -1) return [kv, ''];
+                    return [decodeURIComponent(kv.slice(0, idx)), decodeURIComponent(kv.slice(idx + 1))];
+                });
+                return Object.fromEntries(entries);
+            } catch { return {}; }
+        };
+
+        const cookieHeader = req.headers['cookie'] || '';
+        const cookies = parseCookies(cookieHeader);
+        const cookieUserId = cookies['spacey_uid'];
+
+        const headerUserId = req.headers['x-user-id'];
+        const headerEmail = req.headers['x-user-email'] || user?.email;
+        const bodyUserId = user?.id;
+
+        let userId = 'anonymous';
+        if (headerUserId && typeof headerUserId === 'string') {
+            userId = headerUserId;
+        } else if (bodyUserId && !String(bodyUserId).startsWith('anonymous')) {
+            userId = bodyUserId;
+        } else if (cookieUserId && typeof cookieUserId === 'string') {
+            userId = cookieUserId;
+        } else if (headerEmail && typeof headerEmail === 'string' && headerEmail.toLowerCase() !== 'anonymous@example.com') {
+            userId = `email:${headerEmail.toLowerCase()}`;
+        }
+
+        // Persist canonical id in cookie for cross-request continuity
+        if (userId && !String(userId).startsWith('anonymous')) {
+            res.setHeader('Set-Cookie', `spacey_uid=${encodeURIComponent(userId)}; Path=/; HttpOnly; SameSite=Lax`);
+        }
         console.log('👤 User ID:', userId);
         console.log('🎭 Request type:', type);
 

@@ -79,6 +79,17 @@ class PersistentMemoryManager {
       createdAt: new Date().toISOString(),
       lastActive: new Date().toISOString(),
       
+      // Core identity (durable across sessions)
+      identity: {
+        name: null,
+        email: null,
+        pronouns: null,
+        nationality: null,
+        timezone: null,
+        locale: null,
+        languages: []
+      },
+
       // Interaction statistics
       stats: {
         totalInteractions: 0,
@@ -199,6 +210,41 @@ class PersistentMemoryManager {
       };
     } catch (error) {
       console.error('Error in getUserTraits:', error);
+      return null;
+    }
+  }
+  
+  // === IDENTITY MANAGEMENT ===
+  async updateUserIdentity(userId, updates = {}) {
+    try {
+      const profile = await this.getUserProfile(userId);
+      profile.identity = profile.identity || {};
+      const target = profile.identity;
+      const simpleKeys = ['name', 'email', 'pronouns', 'nationality', 'timezone', 'locale'];
+      for (const k of simpleKeys) {
+        if (updates[k] !== undefined && updates[k] !== null && updates[k] !== '') {
+          target[k] = String(updates[k]);
+        }
+      }
+      // Languages: merge uniquely
+      if (Array.isArray(updates.languages)) {
+        const existing = Array.isArray(target.languages) ? target.languages : [];
+        const merged = Array.from(new Set([...existing, ...updates.languages.filter(Boolean).map(String)]));
+        target.languages = merged;
+      } else if (typeof updates.language === 'string' && updates.language.trim()) {
+        const existing = Array.isArray(target.languages) ? target.languages : [];
+        const merged = Array.from(new Set([...existing, updates.language.trim()]));
+        target.languages = merged;
+      }
+      // Age: accept numeric-like strings
+      if (updates.age !== undefined && updates.age !== null && updates.age !== '') {
+        const n = Number(updates.age);
+        target.age = Number.isFinite(n) ? n : String(updates.age);
+      }
+      await this.saveUserProfile(userId, profile);
+      return profile.identity;
+    } catch (error) {
+      console.error('Error updating user identity:', error);
       return null;
     }
   }

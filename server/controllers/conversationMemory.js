@@ -8,6 +8,22 @@ const EMBEDDING_MODEL = process.env.CONVERSATIONS_EMBED_MODEL || 'Xenova/bge-lar
 let embedder;
 let index;
 
+function scrubMetadata(metadata) {
+  const cleaned = {};
+  for (const [key, value] of Object.entries(metadata || {})) {
+    if (value === undefined || value === null) continue;
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      cleaned[key] = value;
+    } else if (Array.isArray(value) && value.every((v) => typeof v === 'string')) {
+      cleaned[key] = value;
+    } else {
+      // Fallback: coerce to string to satisfy Pinecone metadata type constraints
+      cleaned[key] = String(value);
+    }
+  }
+  return cleaned;
+}
+
 async function initialize() {
   if (embedder && index) return;
   if (!CONVERSATIONS_INDEX_NAME) {
@@ -58,13 +74,13 @@ async function upsertTurn(userId, userMessage, aiResponse, metadata = {}) {
     const vector = await embedder(text, { pooling: 'mean', normalize: true });
     const id = `${userId}:${Date.now()}`;
     const values = Array.from(vector.data);
-    const meta = {
+    const meta = scrubMetadata({
       userId,
       type: 'turn',
       originalText: text,
       timestamp: new Date().toISOString(),
       sessionId: metadata.sessionId,
-    };
+    });
 
     await index
       .namespace(CONVERSATIONS_NAMESPACE)
@@ -76,7 +92,7 @@ async function upsertTurn(userId, userMessage, aiResponse, metadata = {}) {
   }
 }
 
-async function searchRelevant(userId, query, topK = 5) {
+async function searchRelevant(userId, query, topK = 5, extraFilter = {}) {
   try {
     if (!CONVERSATIONS_INDEX_NAME) return '';
     if (!embedder || !index) await initialize();
@@ -88,7 +104,7 @@ async function searchRelevant(userId, query, topK = 5) {
         vector: Array.from(vector.data),
         topK,
         includeMetadata: true,
-        filter: { userId }
+        filter: { userId, ...(extraFilter || {}) }
       });
     if (!res?.matches?.length) return '';
     const lines = res.matches.map(m => m.metadata?.originalText || '').filter(Boolean);
@@ -103,7 +119,7 @@ module.exports = {
   initialize,
   upsertTurn,
   searchRelevant,
-  async upsertFact(userId, text, { factType = 'identity', key = 'unknown' } = {}) {
+  async upsertFact(userId, text, { factType = 'identity', key = 'unknown', ttlDays, confidence, importance } = {}) {
     try {
       if (!CONVERSATIONS_INDEX_NAME) return;
       if (!embedder || !index) await initialize();
@@ -112,7 +128,7 @@ module.exports = {
       const vector = await embedder(clean, { pooling: 'mean', normalize: true });
       const id = `${userId}:fact:${key}:${Date.now()}`;
       const values = Array.from(vector.data);
-      const metadata = { userId, type: 'fact', factType, key, originalText: clean, timestamp: new Date().toISOString() };
+      const metadata = scrubMetadata({ userId, type: 'fact', factType, key, originalText: clean, timestamp: new Date().toISOString(), ttlDays, confidence, importance });
       await index
         .namespace(CONVERSATIONS_NAMESPACE)
         .upsert([{ id, values, metadata }]);
@@ -120,7 +136,7 @@ module.exports = {
       console.warn('Conversation memory upsertFact failed:', err.message);
     }
   },
-  conversationMemory: { initialize, upsertTurn, searchRelevant }
+  conversationMemory: { initialize, upsertTurn, searchRelevant, upsertFact: async (userId, text, opts) => module.exports.upsertFact(userId, text, opts) }
 };
 
 

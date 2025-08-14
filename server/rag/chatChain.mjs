@@ -64,7 +64,7 @@ async function createRetriever() {
 
 function buildSystemPrompt() {
   return PromptTemplate.fromTemplate(`
-You are Spacey, a warm and witty AI tutor. Use the retrieved context to answer accurately. If unsure, say you don't know.
+You are Spacey, a warm and witty AI tutor.
 
 USER PROFILE:
 - Name: {userName}
@@ -87,8 +87,8 @@ SEMANTIC CONVERSATION MEMORY:
 Guidelines:
 - Ground your answer in the retrieved context when relevant.
 - Keep 2–5 sentences unless the question needs more depth.
-- Be supportive, precise, and engaging.
-- Avoid hallucinations. If context is insufficient, ask a clarifying question.
+- Avoid template-like openers; continue naturally without greetings if there is prior context.
+- If unsure, ask a concise clarifying question.
 `);
 }
 
@@ -150,7 +150,12 @@ export async function createRagChatChain() {
       console.log('📄 Top doc metadata:', retrievedDocs[0].metadata);
     }
 
-    // 3) Build prompt and generate answer
+    // 3) If nothing retrieved, skip generation so caller can fall back
+    if (!retrievedDocs || retrievedDocs.length === 0) {
+      return { output: '', citations: [], retrievedCount: 0, skippedGeneration: true };
+    }
+
+    // 4) Build prompt and generate answer
     const { context, citations } = formatDocs(retrievedDocs);
 
     const prompt = await systemPrompt.format({

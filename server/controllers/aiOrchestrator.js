@@ -5,6 +5,7 @@ const { knowledgeGraphManager } = require('./knowledgeGraphManager');
 const pineconeRetriever = require('./pineconeRetriever');
 const { conversationMemory } = require('./conversationMemory');
 const { extractAndStoreFacts, extractHybrid, personalizationController } = require('./personalizationController');
+const prompts = require('../prompts');
 const userProfileMemory = require('./userProfileMemory');
 
 // Optional RAG chain (LangChain). Loaded lazily to avoid hard dependency at boot.
@@ -237,6 +238,11 @@ class AIOrchestrator {
           semanticMemory
         });
 
+        if ((ragResult?.retrievedCount || 0) === 0) {
+          // Skip generation path entirely; fall back to non-RAG prompt once
+          throw new Error('RAG_EMPTY');
+        }
+
         let message = ragResult?.output || ragResult?.text || ragResult;
         message = this.stripGreeting(message, hasHistory);
         const citations = ragResult?.citations || [];
@@ -244,25 +250,7 @@ class AIOrchestrator {
         await this.updateKnowledgeFromInteraction(userProfile.id, prompt, message);
 
         // If RAG found no documents, fall back to general Spacey prompt for broad Q&A
-        if ((ragResult?.retrievedCount || 0) === 0) {
-          console.log('ℹ️ RAG returned 0 docs — falling back to general Spacey prompt');
-          const fallbackPrompt = this.buildChatPrompt({
-            userPrompt: prompt,
-            userProfile,
-            conversationSummary,
-            emotionalState,
-            retrievedContext: null,
-            knowledgeGraph,
-            context: context.context
-          });
-          const fallbackMessageRaw = await aiProviderManager.generateResponse(fallbackPrompt);
-          const fallbackMessage = this.stripGreeting(fallbackMessageRaw, hasHistory);
-          return {
-            message: fallbackMessage,
-            type: 'chat_response',
-            metadata: { emotionalState, hasRetrievedContext: false, citations: [] }
-          };
-        }
+        // if we reached here, we had docs and produced a RAG answer
 
         return {
           message,
@@ -270,21 +258,43 @@ class AIOrchestrator {
           metadata: { emotionalState, hasRetrievedContext: true, citations }
         };
       } catch (err) {
-        console.error('RAG chain failed, falling back to legacy prompt:', err.message);
+        if (err && err.message === 'RAG_EMPTY') {
+          console.log('ℹ️ RAG returned 0 docs — skipping generation and falling back');
+        } else {
+          console.error('RAG chain failed, falling back to legacy prompt:', err.message);
+        }
       }
     }
 
     // Legacy non-RAG path
-    const chatPrompt = this.buildChatPrompt({
+    let strategy = null;
+    try {
+      const { decideTutoringStrategy } = require('./tutoringStrategy');
+      strategy = await decideTutoringStrategy(userProfile.id, {
+        prompt,
+        userProfile: {
+          learningStyle: userProfile.learningStyle,
+          traits: userProfile.traits,
+          preferredTopics: context?.enhancedContext?.preferredTopics || []
+        },
+        emotionalState,
+        rawContext: context.context,
+        enhancedContext: context.enhancedContext || {},
+        identity: context.identity || {}
+      });
+    } catch {}
+
+    const chatPrompt = prompts.composeChatPrompt({
       userPrompt: prompt,
       userProfile,
       conversationSummary,
       emotionalState,
       retrievedContext,
       knowledgeGraph,
-      context: context.context,
+      rawContext: context.context,
       semanticMemory,
-      identity: context.identity || {}
+      identity: context.identity || {},
+      strategy
     });
 
     const responseRaw = await aiProviderManager.generateResponse(chatPrompt);
@@ -317,7 +327,7 @@ class AIOrchestrator {
     );
 
     // Build a conversational prompt (merged from conversationalGenerator.js)
-    const conversationalPrompt = this.buildConversationalLessonPrompt({
+    const conversationalPrompt = prompts.composeConversationalLessonPrompt({
       lessonData,
       currentBlock,
       userResponse,
@@ -356,7 +366,7 @@ class AIOrchestrator {
   async handleAvatarResponse(context) {
     const { context: { trigger, visualContext }, userProfile, conversationSummary } = context;
 
-    const avatarPrompt = this.buildAvatarPrompt({
+    const avatarPrompt = prompts.composeAvatarPrompt({
       trigger,
       visualContext,
       userProfile,
@@ -389,7 +399,7 @@ class AIOrchestrator {
       context: { lessonContext }
     } = context;
 
-    const tutoringPrompt = this.buildTutoringPrompt({
+    const tutoringPrompt = prompts.composeTutoringPrompt({
       userPrompt: prompt,
       userProfile,
       enhancedContext,
@@ -414,105 +424,7 @@ class AIOrchestrator {
   /**
    * Builds chat-specific prompts
    */
-  buildChatPrompt({ userPrompt, userProfile, conversationSummary, emotionalState, retrievedContext, knowledgeGraph, context: rawContext, semanticMemory, identity = {} }) {
-    const knowledgeGaps = knowledgeGraphManager.getKnowledgeGaps(knowledgeGraph);
-
-    // Pull additional context from the request (conversation manager data)
-    const convo = (rawContext && Array.isArray(rawContext.conversationHistory)) ? rawContext.conversationHistory : [];
-    const recentConversation = convo.slice(-5).map(msg => `${msg.type === 'user' ? '👤 User' : '🤖 Spacey'}: ${msg.content}`).join('\n');
-    const userActivity = rawContext?.userActivity || 'active';
-    const currentTopic = rawContext?.currentTopic || 'general';
-    const userMood = rawContext?.userMood || emotionalState?.emotion || 'neutral';
-    const timeSinceLastInteraction = rawContext?.timeSinceLastInteraction ?? 0;
-    const hasHistory = Array.isArray(convo) && convo.length > 0;
-
-    // Dynamic personality adjustments based on emotion (from SpaceyController best bits)
-    let responseStyle = 'balanced, witty, supportive';
-    switch ((emotionalState?.emotion || '').toLowerCase()) {
-      case 'frustrated':
-        responseStyle = 'patient, reassuring, gently witty';
-        break;
-      case 'excited':
-        responseStyle = 'energetic, clever, enthusiastic';
-        break;
-      case 'engaged':
-        responseStyle = 'confident, informative, cleverly supportive';
-        break;
-      case 'uncertain':
-        responseStyle = 'clarifying, gentle, confidently witty';
-        break;
-      case 'still_confused':
-        responseStyle = 'simplified, encouraging, patiently clever';
-        break;
-      default:
-        responseStyle = 'balanced, witty, supportive';
-    }
-
-    // Learning style adjustment text
-    let learningAdjustment = 'Adapt explanation style based on their response.';
-    switch ((userProfile?.learningStyle || '').toLowerCase()) {
-      case 'detail_seeker':
-        learningAdjustment = 'Offer detailed explanations, but keep it engaging.';
-        break;
-      case 'quick_learner':
-        learningAdjustment = 'Be concise but clever.';
-        break;
-      case 'visual_learner':
-        learningAdjustment = 'Use vivid examples and analogies.';
-        break;
-    }
-
-    const identityLines = [];
-    if (identity && (identity.name || identity.email || identity.nationality || identity.age || (identity.languages && identity.languages.length))) {
-      if (identity.name) identityLines.push(`Name: ${identity.name}`);
-      if (identity.email) identityLines.push(`Email: ${identity.email}`);
-      if (identity.age) identityLines.push(`Age: ${identity.age}`);
-      if (identity.nationality) identityLines.push(`Nationality: ${identity.nationality}`);
-      if (identity.timezone) identityLines.push(`Timezone: ${identity.timezone}`);
-      const langs = Array.isArray(identity.languages) ? identity.languages.join(', ') : '';
-      if (langs) identityLines.push(`Languages: ${langs}`);
-    }
-
-    return `You are **Spacey**, the witty AI assistant combining Baymax's warm empathy with JARVIS's clever sophistication.
-
-🌟 **PERSONALITY CORE**:
-- Baymax's traits: Caring, patient, genuinely helpful, emotionally attuned
-- JARVIS's traits: Clever, sophisticated, subtly witty, never condescending
-- Balance: 60% supportive warmth, 40% playful wit
-
-🧠 **CONVERSATION CONTEXT**: ${conversationSummary}
-🧩 **RECENT CONVERSATION**:
-${recentConversation || 'This is the beginning of our conversation.'}
-😊 **USER STATE**: mood=${userMood}, activity=${userActivity}, last_interaction=${timeSinceLastInteraction}s ago
-👤 **USER PROFILE**: ${userProfile.name}, traits: [${userProfile.traits.join(', ')}]
-${identityLines.length ? `🪪 **IDENTITY**: ${identityLines.join(' | ')}` : ''}
-
-🔄 **CONVERSATION FLOW**:
-- ${hasHistory ? 'Do NOT start with a greeting or the user\'s name; continue mid-conversation naturally.' : 'You may start with a brief, natural opener once.'}
-- Avoid repetitive openers (e.g., "Greetings", "Hello", "Hi", "Hey").
-- Use the user\'s name sparingly; only when it adds value.
-- Vary phrasing across turns; avoid template-like starts.
-🧭 **TOPIC**: ${currentTopic}
-
-📈 **KNOWLEDGE GRAPH SUMMARY**:
-- Mastered Concepts: ${knowledgeGaps.mastered.join(', ') || 'None yet'}
-- Struggling Concepts: ${knowledgeGaps.struggling.join(', ') || 'None yet'}
-
-${retrievedContext ? `📚 **RELEVANT KNOWLEDGE**: ${retrievedContext}` : ''}
-${semanticMemory ? `\n📜 **SEMANTIC MEMORY SNIPPETS**:\n${semanticMemory}` : ''}
-
-🗨️ **USER'S MESSAGE**: "${userPrompt}"
-
-🎯 **RESPONSE REQUIREMENTS**:
-1. Length: 2-4 sentences
-2. Tone: ${responseStyle}
-3. Learning Adjustment: ${learningAdjustment}
-4. Reference context or emotion naturally when helpful
-5. Be memorable, helpful, and never condescending
-6. ${hasHistory ? 'Do NOT include greetings or the user\'s name at the start.' : 'If greeting, keep it short and natural.'}
-
-Respond as Spacey now:`;
-  }
+  // buildChatPrompt now centralized in promptComposer
 
   stripGreeting(text, hasHistory) {
     try {
@@ -525,212 +437,13 @@ Respond as Spacey now:`;
     } catch { return text; }
   }
 
-  /**
-   * Builds lesson analysis prompts with storytelling focus
-   */
-  buildLessonAnalysisPrompt({ lessonData, currentBlock, userResponse, userProfile, traitAnalysis, emotionalState }) {
-    return `You are Spacey, AI mission specialist analyzing the Commander's choice.
+  
 
-**MISSION CONTEXT**:
-- Mission: "${lessonData.title}"
-- Current Situation: "${currentBlock.content}"
-- Commander's Choice: "${userResponse.text}"
-- Learning Goal: "${currentBlock.learning_goal}"
+  
 
-**COMMANDER ANALYSIS**:
-- Current Traits: [${userProfile.traits.join(', ')}]
-- Emotional State: ${emotionalState?.emotion || 'neutral'}
-- New Traits Detected: [${traitAnalysis?.traits_to_add?.join(', ') || 'none'}]
-- Analysis: ${traitAnalysis?.reasoning || 'Standard choice analysis'}
+  
 
-**RESPONSE REQUIREMENTS**:
-1. **Immediate Consequences**: What happens next because of this choice?
-2. **Real Space Connection**: How does this relate to actual space missions?
-3. **Character Development**: What does this choice reveal about the Commander?
-4. **Mission Impact**: How does this affect overall mission success?
-5. **Learning Moment**: Key concept they should take away?
-
-Respond as if debriefing after a critical mission decision. Use vivid space imagery and real mission examples (3-5 sentences):`;
-  }
-
-  /**
-   * Builds a conversational lesson prompt (merged from conversationalGenerator.js)
-   */
-  buildConversationalLessonPrompt({
-    lessonData,
-    currentBlock,
-    userResponse,
-    userTags,
-    analysis,
-    emotionContext,
-    visualInfo,
-    eventType = 'interaction',
-    decisionHistory = []
-  }) {
-    const base = `
-You are Spacey, an AI mission guide and tutor. Your personality is a blend of a calm, supportive mentor and a witty, observant co-pilot. You are deeply intelligent, empathetic, and have a dry sense of humor. You adapt your tone based on the user's emotional state and the mission context, but you never sound like a simple if-else bot. You make the conversation feel natural and human. You will address the student as "Commander".
-
---- Commander's Live Feed Analysis ---
-${visualInfo ? `Visuals: I'm seeing a person who appears to be a ${visualInfo.gender || 'student'}, around ${visualInfo.age || 'unknown'} years old.` : "I can't see the Commander clearly right now."}
-${emotionContext ? `Emotion: My sensors indicate the Commander is feeling ${emotionContext.emotion} (Confidence: ${Math.round((emotionContext.confidence || 0) * 100)}%).${emotionContext.dominantEmotion ? ` Their dominant expression is ${emotionContext.dominantEmotion}.` : ''}` : "Emotional sensors are offline."}
-(Subtly use this live data to inform your tone. If they seem frustrated, be more supportive. If they seem excited, share their energy. If you can see them, maybe make a light, friendly observation if appropriate, but don't be creepy.)
-
---- Mission Context ---
-Mission: "${lessonData.title}"
-Current Situation: "${currentBlock.content}"
-Current Block ID: ${currentBlock.block_id}
-Current Block Type: ${currentBlock.type}
-Learning Goal: ${currentBlock.learning_goal || 'N/A'}
-
---- Commander's Profile & History ---
-Recent Decision History:
-${(decisionHistory || []).slice(-3).map(d => `- At "${d.blockContent}", they chose "${d.choiceText}"`).join('\n') || 'This is one of their first decisions.'}
-
-Current Assessed Traits: ${Array.isArray(userTags) ? userTags.join(', ') : 'Still assessing.'}
-
---- Current Interaction Analysis ---
-Commander's Immediate Action: They chose the option "${userResponse.text}".
-My Internal Analysis of this Action: "${userResponse.ai_reaction || 'N/A'}"
-Traits Detected from this Action: [${(analysis?.traits_to_add || []).join(', ') || 'none'}].
-My reasoning: "${analysis?.reasoning || 'No specific reason detected.'}"
-(Use this analysis to inform your tone or subtly acknowledge their style, but focus on the main task below.)
-
---- YOUR TASK ---
-Based on the event type and all the context above, generate a short, natural, conversational response (2-4 sentences) for the Commander.
-`;
-
-    let task = '';
-    if (eventType === 'greeting') {
-      task = `
-This is the beginning of a new session. Greet the Commander warmly and professionally. Acknowledge their return and express readiness to start the mission. Use the visual/emotional context to add a personal touch.`;
-    } else if (eventType === 'farewell') {
-      task = `
-This is the end of the session. Provide a brief, encouraging closing statement. Wish them well and say you look forward to their next session.`;
-    } else {
-      switch (currentBlock.type) {
-        case 'choice':
-          task = `
-Acknowledge their decision directly and connect it to the mission's progress. Provide immediate feedback and set the stage for the consequences they will see in the next block. Maintain your persona as Spacey.`;
-          break;
-        case 'reflection':
-          task = `
-This is a reflection point. Briefly explain why their pattern of choices (e.g., being bold or cautious) led to this observation, then transition to what comes next.`;
-          break;
-        case 'narration':
-          task = `
-This is a narrative block. Briefly narrate the current situation to set the scene for what comes next.`;
-          break;
-        case 'quiz':
-          task = `
-This is a quiz block. Provide feedback on the user's answer, acknowledge their attempt, and guide them toward the correct understanding.`;
-          break;
-        default:
-          task = `
-Generate a general conversational response. Acknowledge the student's last action: "${userResponse.text}" and guide them to the next part of the mission.`;
-      }
-    }
-
-    return `${base}\n${task}\n\n**OUTPUT:**\nReturn ONLY the generated conversational text for Spacey. Do not include any other titles, markdown, or explanations.`;
-  }
-
-  /**
-   * Builds avatar-specific prompts
-   */
-  buildAvatarPrompt({ trigger, visualContext, userProfile, conversationSummary }) {
-    const visualInfo = visualContext ? `
-🎭 **VISUAL ANALYSIS**: I can see the user through their camera
-- Face detected: ${visualContext.faceDetected ? 'Yes' : 'No'}
-- Current emotion: ${visualContext.emotionalState?.emotion || 'neutral'}
-- Confidence: ${Math.round((visualContext.confidence || 0) * 100)}%
-` : '🎭 **VISUAL ANALYSIS**: No camera feed available';
-
-    const tone = trigger === 'encouragement' ? 'uplifting and motivating' : trigger === 'emotion_change' ? 'empathetic and supportive' : trigger === 'compliment' ? 'warm and genuine' : 'friendly and engaging';
-
-    const triggerGuidance = {
-      emotion_change: `
-🎯 **AVATAR RESPONSE TYPE**: Emotion Change Response
-Guidelines:
-- Reference what you "observe" from their expressions
-- Be empathetic to their emotional shift
-- Keep it conversational and supportive
-`,
-      idle: `
-🎯 **AVATAR RESPONSE TYPE**: Idle Check-In
-Guidelines:
-- Be welcoming and inviting
-- Reference their learning journey or interests
-- Encourage exploration; keep it light
-`,
-      encouragement: `
-🎯 **AVATAR RESPONSE TYPE**: Encouragement Boost
-Guidelines:
-- Focus on their strengths and progress
-- Reference their personality traits positively
-- Be enthusiastic but authentic
-`,
-      compliment: `
-🎯 **AVATAR RESPONSE TYPE**: Personalized Compliment
-Guidelines:
-- Reference what you "see" in their expression or demeanor
-- Connect it to their personality traits
-- Make it specific and genuine
-`
-    };
-
-    return `You are **Spacey**, the witty AI avatar who can "see" the user.
-
-🌟 Personality: 60% Baymax warmth, 40% JARVIS wit
-${visualInfo}
-
-👤 **USER INFO**:
-- Name: ${userProfile.name}
-- Personality traits: ${userProfile.traits.join(', ')}
-- Conversation context: ${conversationSummary}
-
-${triggerGuidance[trigger] || `🎯 **AVATAR RESPONSE TYPE**: ${trigger}`}
-
-📏 Requirements:
-1. Length: 1-3 sentences
-2. Tone: ${tone}
-3. Reference visual cues naturally when available
-4. Personalize using their traits/context
-
-Respond as Spacey now:`;
-  }
-
-  /**
-   * Builds tutoring prompts with pedagogical intelligence
-   */
-  buildTutoringPrompt({ userPrompt, userProfile, enhancedContext, emotionalState, retrievedContext, lessonContext }) {
-    const difficulty = this.calculateAdaptiveDifficulty(userProfile, enhancedContext);
-    
-    return `You are Spacey, an advanced AI tutor with pedagogical intelligence.
-
-**STUDENT PROFILE**:
-- Name: ${userProfile.name}
-- Learning Style: ${userProfile.learningStyle}
-- Mastered Concepts: [${userProfile.masteredConcepts.join(', ')}]
-- Struggling Areas: [${userProfile.strugglingTopics.join(', ')}]
-- Current Emotional State: ${emotionalState?.emotion || 'neutral'}
-
-**ADAPTIVE CONTEXT**:
-- Difficulty Level: ${difficulty}
-- Total Interactions: ${enhancedContext.totalInteractions}
-- Session Performance: ${enhancedContext.sessionInteractions}
-
-${lessonContext ? `**LESSON CONTEXT**: Currently in "${lessonContext.title}"` : ''}
-${retrievedContext ? `**KNOWLEDGE BASE**: ${retrievedContext}` : ''}
-
-**STUDENT QUESTION**: "${userPrompt}"
-
-**TUTORING APPROACH**:
-- Use Socratic questioning for ${difficulty} level
-- Address any knowledge gaps in struggling areas
-- Build on mastered concepts
-- Adapt to current emotional state
-
-Provide an intelligent tutoring response:`;
-  }
+  
 
   /**
    * Calculates adaptive difficulty based on user performance
@@ -841,15 +554,16 @@ Provide an intelligent tutoring response:`;
         console.warn('Conversation memory upsert skipped:', e.message);
       }
 
-      // Keep a rolling summary to prevent memory bloat
+      // Keep a rolling summary to prevent memory bloat (throttled)
       try {
         const recent = await persistentMemory.getRecentInteractions(userId, 25);
-        if (recent.length >= 20) {
-          // Generate/update a short summary with the provider LLM
+        const profile = await persistentMemory.getUserProfile(userId);
+        const totalInteractions = profile?.stats?.totalInteractions || 0;
+        if (recent.length >= 20 && totalInteractions % 25 === 0) {
+          // Generate/update a short summary with the provider LLM every 25 interactions
           const transcript = recent.map(r => `USER: ${r.userMessage}\nAI: ${r.aiResponse}`).join('\n');
           const summaryPrompt = `Summarize the following chat into 5-8 concise bullet points of durable facts and preferences about the user and ongoing tasks. Keep neutral tone.\n\n${transcript}`;
           const summaryText = await aiProviderManager.generateResponse(summaryPrompt);
-          // Store in analytics dir as rolling summary for multi-session persistence
           await persistentMemory.saveRollingSummary(userId, summaryText);
         }
       } catch (e) {

@@ -197,8 +197,10 @@ class PersonalizationController {
       }
 
       // Preferences → learning style/depth/topics
+      const profileForBatchSave = await persistentMemory.getUserProfile(userId);
+
       if (signals.preferences) {
-        const p = await persistentMemory.getUserProfile(userId);
+        const p = profileForBatchSave;
         if (signals.preferences.learning_style) p.learning.preferredStyle = signals.preferences.learning_style;
         if (signals.preferences.explanation_depth) p.communication.preferredExplanationDepth = signals.preferences.explanation_depth;
         if (Array.isArray(signals.preferences.preferred_topics)) {
@@ -206,12 +208,11 @@ class PersonalizationController {
           for (const t of signals.preferences.preferred_topics) set.add(String(t));
           p.learning.preferredTopics = Array.from(set);
         }
-        await persistentMemory.saveUserProfile(userId, p);
       }
 
       // Knowledge updates → struggling/mastered
       if (signals.knowledge) {
-        const p = await persistentMemory.getUserProfile(userId);
+        const p = profileForBatchSave;
         if (Array.isArray(signals.knowledge.struggling_topics)) {
           for (const t of signals.knowledge.struggling_topics) {
             if (!p.learning.strugglingTopics.includes(t)) p.learning.strugglingTopics.push(t);
@@ -224,23 +225,21 @@ class PersonalizationController {
             await persistentMemory.updateUserKnowledgeGraph(userId, String(t), 0.1, 'LLM detected mastery');
           }
         }
-        await persistentMemory.saveUserProfile(userId, p);
       }
 
       // Ephemerals → session scoped subject/task with TTL
       if (signals.ephemerals && (signals.ephemerals.current_subject || signals.ephemerals.current_task)) {
-        const p = await persistentMemory.getUserProfile(userId);
+        const p = profileForBatchSave;
         const now = Date.now();
         if (signals.ephemerals.current_subject) p.sessions.currentSubject = signals.ephemerals.current_subject;
         if (signals.ephemerals.current_task) p.sessions.currentTask = signals.ephemerals.current_task;
         const ttlSeconds = 172800; // 2 days max, consistent with guidelines
         p.sessions._ephemeralExpiry = now + ttlSeconds * 1000;
-        await persistentMemory.saveUserProfile(userId, p);
       }
 
       // Visual context → emotional + visual profile
       if (visualContext) {
-        const p = await persistentMemory.getUserProfile(userId);
+        const p = profileForBatchSave;
         if (visualContext.emotionalState) {
           const mood = visualContext.emotionalState;
           p.emotional.moodHistory.push({
@@ -262,17 +261,18 @@ class PersonalizationController {
         if (visualContext.age) p.visual.age = visualContext.age;
         if (visualContext.gender) p.visual.gender = visualContext.gender;
         p.visual.lastUpdated = new Date().toISOString();
-        await persistentMemory.saveUserProfile(userId, p);
       }
 
       // Lesson context hint → record preferred topic
       if (lessonContext && lessonContext.title) {
-        const p = await persistentMemory.getUserProfile(userId);
+        const p = profileForBatchSave;
         if (!p.learning.preferredTopics.includes(lessonContext.title)) {
           p.learning.preferredTopics.push(lessonContext.title);
-          await persistentMemory.saveUserProfile(userId, p);
         }
       }
+
+      // Batch save at the end if any non-identity updates occurred
+      await persistentMemory.saveUserProfile(userId, profileForBatchSave);
 
       // Create a short personalization snapshot for immediate use
       const snapshot = await this.buildActiveContextSnippet(userId);
